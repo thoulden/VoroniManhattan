@@ -7,26 +7,36 @@
 <style>
   :root { --bg:#f8f7f2; --fg:#111; --accent:#0b6; }
   * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-
-  /* Two-row grid: header then the canvas taking all remaining space */
+  html, body { height: 100%; }
   body {
-    display: grid;
-    grid-template-rows: auto 1fr;
-    grid-template-columns: 100%;
+    margin:0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: var(--bg); color: var(--fg);
+    display: grid; grid-template-rows: auto 1fr auto;
   }
-
-  header { padding: 10px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  header {
+    padding: 10px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    border-bottom: 1px solid #e5e5e5;
+  }
   header > * { font-size: 14px; }
-  label { display:inline-flex; align-items:center; gap:6px; }
-  button { padding:6px 10px; border:1px solid #ccc; background:#fff; border-radius:8px; cursor:pointer; }
+  label { display: inline-flex; align-items: center; gap: 6px; }
+  button {
+    padding: 6px 10px; border: 1px solid #ccc; background: #fff;
+    border-radius: 8px; cursor: pointer;
+  }
   button:hover { border-color: var(--accent); }
-
-  /* Canvas wrapper fills the remaining row */
-  #canvasWrap { position: relative; width: 100%; height: 100%; }
-  #c { width: 100%; height: 100%; display:block; background: var(--bg); }
-
-  #status { text-align:center; padding: 6px 0 12px; font-size: 13px; color:#666; }
+  #container { position: relative; height: 100%; }
+  /* Big, responsive canvas that fills the available space */
+  canvas {
+    display:block;
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+  }
+  #status {
+    text-align:center; padding: 8px 12px; font-size: 13px; color:#666;
+    border-top: 1px solid #e5e5e5;
+  }
 </style>
 </head>
 <body>
@@ -53,9 +63,10 @@
     <button id="redraw">Redraw</button>
   </header>
 
-  <div id="canvasWrap">
+  <div id="container">
     <canvas id="c"></canvas>
   </div>
+
   <div id="status">Loading…</div>
 
 <script type="module">
@@ -64,6 +75,7 @@ async function main() {
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { willReadFrequently: false });
 
+  // UI
   const metricEl = document.getElementById('metric');
   const angleWrap = document.getElementById('angleWrap');
   const angleEl = document.getElementById('angle');
@@ -71,82 +83,106 @@ async function main() {
   const resEl = document.getElementById('res');
   const redrawBtn = document.getElementById('redraw');
 
-  // Load data
+  // -------- Load data --------
   const [boundaryFC, stationsFC] = await Promise.all([
     fetch('./data/manhattan_boundary.geojson').then(r => r.json()),
     fetch('./data/manhattan_stations.geojson').then(r => r.json())
   ]);
 
-  // GeoJSON helpers
-  const fcToPolysLonLat = (fc) => {
-    const polys = [];
-    for (const feat of fc.features) {
-      const g = feat.geometry;
-      if (!g) continue;
-      if (g.type === 'Polygon') polys.push(g.coordinates[0]);
-      else if (g.type === 'MultiPolygon') for (const p of g.coordinates) polys.push(p[0]);
+  // -------- Robust GeoJSON helpers --------
+  function normalizeLonLat(a, b) {
+    const inLon = (x) => x > -180 && x < -60; // longitudes that include NYC
+    const inLat = (x) => x > 20 && x < 55;    // latitudes that include NYC
+    if (inLon(a) && inLat(b)) return [a,b];   // lon,lat already
+    if (inLon(b) && inLat(a)) return [b,a];   // looks like lat,lon -> swap
+    return [a,b];
+  }
+
+  function ringArea(ring) { // signed area (shoelace) just for comparing sizes
+    let a = 0;
+    for (let i=0, j=ring.length-1; i<ring.length; j=i++) {
+      const [x0,y0] = ring[j], [x1,y1] = ring[i];
+      a += x0*y1 - x1*y0;
     }
-    return polys;
-  };
-  const fcToPointsLonLat = (fc) => {
+    return a/2;
+  }
+
+  function largestOuterRing(featureCollection) {
+    let best = null, bestArea = -Infinity;
+    for (const f of featureCollection.features) {
+      const g = f.geometry;
+      if (!g) continue;
+      if (g.type === 'Polygon') {
+        const ring = g.coordinates[0];
+        const area = Math.abs(ringArea(ring));
+        if (area > bestArea) { bestArea = area; best = ring; }
+      } else if (g.type === 'MultiPolygon') {
+        for (const poly of g.coordinates) {
+          const ring = poly[0];
+          const area = Math.abs(ringArea(ring));
+          if (area > bestArea) { bestArea = area; best = ring; }
+        }
+      }
+    }
+    // Normalize each vertex to [lon,lat] (bounds check also happens later)
+    return (best || []).map(([a,b]) => normalizeLonLat(a,b));
+  }
+
+  function stationsLonLatClean(fc) {
     const pts = [];
     for (const feat of fc.features) {
       const g = feat.geometry;
-      if (g?.type === 'Point') pts.push(g.coordinates);
-      else if (g?.type === 'MultiPoint') for (const p of g.coordinates) pts.push(p);
-      // ignore others
+      if (g?.type === 'Point') {
+        const [a,b] = g.coordinates;
+        const [lon,lat] = normalizeLonLat(a,b);
+        if (lon > -75 && lon < -72 && lat > 40 && lat < 41) pts.push([lon,lat]);
+      }
     }
-    return pts.map(([lon,lat]) => [lon,lat]);
-  };
+    return pts;
+  }
 
-  // Spherical mercator (minimally safeguarded)
+  // -------- Projection & sizing --------
   function mercatorProject(lon, lat) {
     const λ = lon * Math.PI/180;
-    const φ = Math.max(Math.min(lat * Math.PI/180, Math.PI/2 - 1e-6), -Math.PI/2 + 1e-6);
+    const φ = Math.max(Math.min(lat* Math.PI/180, Math.PI/2 - 1e-6), -Math.PI/2 + 1e-6);
     return [λ, Math.log(Math.tan(Math.PI/4 + φ/2))];
   }
 
-  // High-DPI sizing
-  function resizeCanvasToDisplaySize() {
+  function resizeCanvasToDisplaySize(canvas) {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const rect = canvas.getBoundingClientRect();          // CSS px
-    const w = Math.max(1, Math.round(rect.width * dpr));  // backing px
+    const rect = canvas.getBoundingClientRect(); // CSS pixels
+    const w = Math.max(1, Math.round(rect.width * dpr));
     const h = Math.max(1, Math.round(rect.height * dpr));
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;
     }
-    // draw in CSS pixels by scaling once
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    status.textContent = `Canvas: CSS ${Math.round(rect.width)}×${Math.round(rect.height)} | Backing ${w}×${h} | DPR ${dpr.toFixed(2)}`;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // draw using CSS pixel coords
   }
 
-  // Data in lon/lat
-  const ringsLonLat = fcToPolysLonLat(boundaryFC);
-  const stationsLonLat = fcToPointsLonLat(stationsFC);
+  const boundaryRingLonLat = largestOuterRing(boundaryFC); // [[lon,lat],...]
+  const stationsLonLat      = stationsLonLatClean(stationsFC); // [[lon,lat],...]
 
-  // Derived (depends on size)
-  let projectedRings = [];
-  let toCanvas = (xy) => xy;
-  let stationXY = [];
+  let projectedRing = [];     // boundary ring projected
+  let stationXY = [];         // stations in canvas pixels
+  let toCanvas = (xy)=>xy;    // set after fit
 
   function fitProjectionAndPrecompute() {
-    projectedRings = ringsLonLat.map(r => r.map(([lon,lat]) => mercatorProject(lon,lat)));
+    // Project boundary & stations to Mercator
+    projectedRing = boundaryRingLonLat.map(([lon,lat]) => mercatorProject(lon,lat));
+    const stationProj = stationsLonLat.map(([lon,lat]) => mercatorProject(lon,lat));
 
-    // bounds in projected space
+    // Use stations for viewport (fallback to boundary if empty)
+    const coordsForBbox = stationProj.length ? stationProj : projectedRing;
+
     let minX=+Infinity, minY=+Infinity, maxX=-Infinity, maxY=-Infinity;
-    for (const ring of projectedRings) {
-      for (const [x,y] of ring) {
-        if (x<minX) minX=x; if (x>maxX) maxX=x;
-        if (y<minY) minY=y; if (y>maxY) maxY=y;
-      }
+    for (const [x,y] of coordsForBbox) {
+      if (x<minX) minX=x; if (x>maxX) maxX=x;
+      if (y<minY) minY=y; if (y>maxY) maxY=y;
     }
-    const pad = 0.04; minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+    const pad = 0.06; minX -= pad; maxX += pad; minY -= pad; maxY += pad;
 
-    // CSS size
-    const cssW = canvas.clientWidth;
-    const cssH = canvas.clientHeight;
-
+    const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
     const sx = cssW / (maxX - minX);
     const sy = cssH / (maxY - minY);
     const s  = Math.min(sx, sy);
@@ -154,72 +190,79 @@ async function main() {
     const oy = (cssH - s*(maxY-minY))/2;
 
     toCanvas = ([x,y]) => [ ox + s*(x - minX), oy + s*(maxY - y) ];
-    stationXY = stationsLonLat.map(([lon,lat]) => toCanvas(mercatorProject(lon,lat)));
+    stationXY = stationProj.map(([x,y]) => toCanvas([x,y]));
   }
 
-  // Distances
+  // -------- Distance helpers --------
   const palette = Array.from({length: 20}, (_,i) => `hsl(${(i*360/20)|0} 70% 45%)`);
+
   const rotate = (x,y,deg) => {
-    const t = deg*Math.PI/180, c=Math.cos(t), s=Math.sin(t);
+    const t = deg * Math.PI/180, c = Math.cos(t), s = Math.sin(t);
     return [ c*x + s*y, -s*x + c*y ];
   };
+
   function nearestIndexL1(x,y,deg=0) {
     if (deg) [x,y] = rotate(x,y,deg);
-    let best=Infinity, idx=0;
-    for (let i=0;i<stationXY.length;i++){
+    let bestIdx = 0, best = Infinity;
+    for (let i=0;i<stationXY.length;i++) {
       let [sx,sy] = stationXY[i];
       if (deg) [sx,sy] = rotate(sx,sy,deg);
-      const d = Math.abs(x-sx) + Math.abs(y-sy);
-      if (d<best){best=d; idx=i;}
+      const d = Math.abs(x - sx) + Math.abs(y - sy);
+      if (d < best) { best = d; bestIdx = i; }
     }
-    return idx;
-  }
-  function nearestIndexL2(x,y) {
-    let best=Infinity, idx=0;
-    for (let i=0;i<stationXY.length;i++){
-      const [sx,sy] = stationXY[i];
-      const dx=x-sx, dy=y-sy, d=dx*dx+dy*dy;
-      if (d<best){best=d; idx=i;}
-    }
-    return idx;
+    return bestIdx;
   }
 
+  function nearestIndexL2(x,y) {
+    let bestIdx = 0, best = Infinity;
+    for (let i=0;i<stationXY.length;i++) {
+      const [sx,sy] = stationXY[i];
+      const dx = x - sx, dy = y - sy;
+      const d = dx*dx + dy*dy;
+      if (d < best) { best = d; bestIdx = i; }
+    }
+    return bestIdx;
+  }
+
+  // -------- Drawing --------
   function setClip() {
     ctx.save();
     ctx.beginPath();
-    for (const ring of projectedRings) {
-      const [x0,y0] = toCanvas(ring[0]);
+    if (projectedRing.length) {
+      const [x0,y0] = toCanvas(projectedRing[0]);
       ctx.moveTo(x0,y0);
-      for (let i=1;i<ring.length;i++) {
-        const [xi,yi] = toCanvas(ring[i]);
+      for (let i=1;i<projectedRing.length;i++) {
+        const [xi,yi] = toCanvas(projectedRing[i]);
         ctx.lineTo(xi,yi);
       }
       ctx.closePath();
     }
     ctx.clip('nonzero');
   }
+
   function drawOutline() {
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
     ctx.strokeStyle = '#111';
     ctx.beginPath();
-    for (const ring of projectedRings) {
-      const [x0,y0] = toCanvas(ring[0]);
+    if (projectedRing.length) {
+      const [x0,y0] = toCanvas(projectedRing[0]);
       ctx.moveTo(x0,y0);
-      for (let i=1;i<ring.length;i++) {
-        const [xi,yi] = toCanvas(ring[i]);
+      for (let i=1;i<projectedRing.length;i++) {
+        const [xi,yi] = toCanvas(projectedRing[i]);
         ctx.lineTo(xi,yi);
       }
       ctx.closePath();
     }
     ctx.stroke();
   }
+
   function drawStations() {
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#fff';
-    ctx.fillStyle   = '#111';
+    ctx.fillStyle = '#111';
     for (const [x,y] of stationXY) {
       ctx.beginPath();
-      ctx.arc(x,y,2,0,Math.PI*2);
+      ctx.arc(x, y, 2, 0, Math.PI*2);
       ctx.fill();
       ctx.stroke();
     }
@@ -227,8 +270,8 @@ async function main() {
 
   async function render() {
     const metric = metricEl.value;
-    const res    = parseInt(resEl.value,10);
-    const angle  = parseFloat(angleEl.value);
+    const res = parseInt(resEl.value, 10);
+    const angle = parseFloat(angleEl.value);
     angleVal.textContent = `${angle|0}°`;
     status.textContent = `Rendering (${metric.toUpperCase()} @ step=${res})…`;
 
@@ -239,12 +282,12 @@ async function main() {
     const H = canvas.clientHeight;
 
     let x = 0;
-    const band = 8*res;
+    const band = 8*res; // columns per frame
     function step() {
       const xEnd = Math.min(W, x + band);
-      for (let xi=x; xi<xEnd; xi+=res) {
-        for (let yi=0; yi<H; yi+=res) {
-          const idx = (metric==='l1')
+      for (let xi = x; xi < xEnd; xi += res) {
+        for (let yi = 0; yi < H; yi += res) {
+          const idx = (metric === 'l1')
             ? nearestIndexL1(xi + 0.5*res, yi + 0.5*res, angle)
             : nearestIndexL2(xi + 0.5*res, yi + 0.5*res);
           ctx.fillStyle = palette[idx % palette.length];
@@ -252,8 +295,9 @@ async function main() {
         }
       }
       x = xEnd;
-      if (x < W) requestAnimationFrame(step);
-      else {
+      if (x < W) {
+        requestAnimationFrame(step);
+      } else {
         ctx.restore();
         drawOutline();
         drawStations();
@@ -263,26 +307,27 @@ async function main() {
     requestAnimationFrame(step);
   }
 
-  // UI
+  // -------- UI & resize wiring --------
   metricEl.addEventListener('change', () => {
     angleWrap.style.display = (metricEl.value === 'l1') ? 'inline-flex' : 'none';
   });
-  angleEl.addEventListener('input', () => { angleVal.textContent = `${angleEl.value}°`; });
+  angleEl.addEventListener('input', () => {
+    angleVal.textContent = `${angleEl.value}°`;
+  });
   redrawBtn.addEventListener('click', render);
 
-  // Resize/redraw
   function handleResize() {
-    resizeCanvasToDisplaySize();
-    fitProjectionAndPrecompute();
-    render();
+    resizeCanvasToDisplaySize(canvas);  // set DPR backing store & context scale
+    fitProjectionAndPrecompute();       // recompute transforms for new size
+    render();                           // redraw
   }
   let resizeTimer;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(handleResize, 120);
+    resizeTimer = setTimeout(handleResize, 80);
   });
 
-  // First draw
+  // -------- Initial draw --------
   metricEl.dispatchEvent(new Event('change'));
   handleResize();
 }
@@ -294,4 +339,3 @@ main().catch(err => {
 </script>
 </body>
 </html>
-
