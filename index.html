@@ -269,35 +269,52 @@ async function main() {
   }
 
   // Build neighbor-aware colors via Delaunay → greedy coloring
-  function computeSiteColors() {
-    const n = stationXY.length;
-    siteColor = Array(n).fill(null);
-    if (n === 0) return;
+  // Build neighbor-aware colors via Delaunay → balanced greedy coloring
+function computeSiteColors() {
+  const n = stationXY.length;
+  siteColor = Array(n).fill(null);
+  if (n === 0) return;
 
-    const delaunay = Delaunay.from(stationXY);
-    const neighbors = Array.from({length:n}, () => new Set());
+  const m = MTA_COLORS.length;
+  const colorCounts = Array(m).fill(0); // usage count per palette color
+  let cursor = 0;                       // rotates to avoid early-color bias
 
-    for (let i=0; i<n; i++) {
-      for (const j of delaunay.neighbors(i)) {
-        neighbors[i].add(j);
-        neighbors[j].add(i);
-      }
-    }
-
-    // Welsh–Powell ordering (high degree first)
-    const order = Array.from({length:n}, (_,i)=>i)
-      .sort((a,b) => neighbors[b].size - neighbors[a].size);
-
-    for (const v of order) {
-      const used = new Set();
-      for (const u of neighbors[v]) {
-        const c = siteColor[u];
-        if (c) used.add(c);
-      }
-      const pick = MTA_COLORS.find(c => !used.has(c)) || MTA_COLORS[0];
-      siteColor[v] = pick;
-    }
+  const delaunay = Delaunay.from(stationXY);
+  const neighbors = Array.from({length:n}, () => new Set());
+  for (let i=0; i<n; i++) for (const j of delaunay.neighbors(i)) {
+    neighbors[i].add(j); neighbors[j].add(i);
   }
+
+  // Welsh–Powell ordering (high degree first)
+  const order = Array.from({length:n}, (_,i)=>i)
+    .sort((a,b) => neighbors[b].size - neighbors[a].size);
+
+  for (const v of order) {
+    const forbidden = new Set();
+    for (const u of neighbors[v]) {
+      const c = siteColor[u];
+      if (c != null) forbidden.add(c);
+    }
+
+    // Build list of allowed color indices
+    const allowed = [];
+    for (let k = 0; k < m; k++) if (!forbidden.has(k)) allowed.push(k);
+
+    // Pick allowed color with the lowest usage; break ties by rotating start
+    let bestIdx = allowed[0], bestCount = Infinity;
+    // start from cursor to spread choices across the palette
+    for (let t = 0; t < allowed.length; t++) {
+      const k = allowed[(t + cursor) % allowed.length];
+      const cnt = colorCounts[k];
+      if (cnt < bestCount) { bestCount = cnt; bestIdx = k; }
+    }
+
+    siteColor[v] = bestIdx;
+    colorCounts[bestIdx] += 1;
+    cursor = (cursor + 1) % m; // move the tie-breaker forward for next site
+  }
+}
+
 
   function setClip() {
     ctx.save();
@@ -366,7 +383,7 @@ async function main() {
             ? nearestIndexL1(xi + 0.5*res, yi + 0.5*res, angle)
             : nearestIndexL2(xi + 0.5*res, yi + 0.5*res);
 
-          const color = siteColor[idx] || MTA_COLORS[idx % MTA_COLORS.length];
+          const color = siteColor[idx] ?? MTA_COLORS[idx % MTA_COLORS.length];
           ctx.fillStyle = color;
           ctx.fillRect(xi, yi, res, res);
         }
