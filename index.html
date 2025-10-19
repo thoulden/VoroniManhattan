@@ -6,21 +6,26 @@
 <title>Manhattan Voronoi (L1 / L2)</title>
 <style>
   :root { --bg:#f8f7f2; --fg:#111; --accent:#0b6; }
-  body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--fg); }
-  header { padding: 10px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-  header > * { font-size: 14px; }
-  label { display: inline-flex; align-items: center; gap: 6px; }
-  button { padding: 6px 10px; border: 1px solid #ccc; background: #fff; border-radius: 8px; cursor: pointer; }
-  button:hover { border-color: var(--accent); }
-  #container { position: relative; }
-  canvas {
-    display:block;
-    /* let it get *big*; use viewport size */
-    width: 100vw;
-    height: calc(100dvh - 64px); /* fill below header */
-    margin: 0 auto 16px auto;
-    background: var(--bg);
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+
+  /* Two-row grid: header then the canvas taking all remaining space */
+  body {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    grid-template-columns: 100%;
   }
+
+  header { padding: 10px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  header > * { font-size: 14px; }
+  label { display:inline-flex; align-items:center; gap:6px; }
+  button { padding:6px 10px; border:1px solid #ccc; background:#fff; border-radius:8px; cursor:pointer; }
+  button:hover { border-color: var(--accent); }
+
+  /* Canvas wrapper fills the remaining row */
+  #canvasWrap { position: relative; width: 100%; height: 100%; }
+  #c { width: 100%; height: 100%; display:block; background: var(--bg); }
+
   #status { text-align:center; padding: 6px 0 12px; font-size: 13px; color:#666; }
 </style>
 </head>
@@ -39,7 +44,6 @@
     </label>
     <label>Resolution (px):
       <select id="res">
-        <!-- This controls how densely we sample pixels when coloring (1 = every pixel, 2 = every 2nd pixel, etc.) -->
         <option value="2" selected>Fast (2)</option>
         <option value="1">Fine (1)</option>
         <option value="3">Faster (3)</option>
@@ -49,7 +53,7 @@
     <button id="redraw">Redraw</button>
   </header>
 
-  <div id="container">
+  <div id="canvasWrap">
     <canvas id="c"></canvas>
   </div>
   <div id="status">Loading…</div>
@@ -60,7 +64,6 @@ async function main() {
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { willReadFrequently: false });
 
-  // UI
   const metricEl = document.getElementById('metric');
   const angleWrap = document.getElementById('angleWrap');
   const angleEl = document.getElementById('angle');
@@ -68,69 +71,69 @@ async function main() {
   const resEl = document.getElementById('res');
   const redrawBtn = document.getElementById('redraw');
 
-  // -------- Load data --------
+  // Load data
   const [boundaryFC, stationsFC] = await Promise.all([
     fetch('./data/manhattan_boundary.geojson').then(r => r.json()),
     fetch('./data/manhattan_stations.geojson').then(r => r.json())
   ]);
 
-  // -------- Helpers (unchanged logic) --------
+  // GeoJSON helpers
   const fcToPolysLonLat = (fc) => {
     const polys = [];
     for (const feat of fc.features) {
       const g = feat.geometry;
+      if (!g) continue;
       if (g.type === 'Polygon') polys.push(g.coordinates[0]);
-      if (g.type === 'MultiPolygon') for (const poly of g.coordinates) polys.push(poly[0]);
+      else if (g.type === 'MultiPolygon') for (const p of g.coordinates) polys.push(p[0]);
     }
     return polys;
   };
-
   const fcToPointsLonLat = (fc) => {
     const pts = [];
     for (const feat of fc.features) {
-      if (feat.geometry?.type === 'Point') {
-        const [lon,lat] = feat.geometry.coordinates;
-        pts.push([lon,lat]);
-      }
+      const g = feat.geometry;
+      if (g?.type === 'Point') pts.push(g.coordinates);
+      else if (g?.type === 'MultiPoint') for (const p of g.coordinates) pts.push(p);
+      // ignore others
     }
-    return pts;
+    return pts.map(([lon,lat]) => [lon,lat]);
   };
 
+  // Spherical mercator (minimally safeguarded)
   function mercatorProject(lon, lat) {
     const λ = lon * Math.PI/180;
-    const φ = Math.max(Math.min(lat* Math.PI/180, Math.PI/2 - 1e-6), -Math.PI/2 + 1e-6);
-    const x = λ;
-    const y = Math.log(Math.tan(Math.PI/4 + φ/2));
-    return [x, y];
+    const φ = Math.max(Math.min(lat * Math.PI/180, Math.PI/2 - 1e-6), -Math.PI/2 + 1e-6);
+    return [λ, Math.log(Math.tan(Math.PI/4 + φ/2))];
   }
 
-  // -------- High-DPI canvas setup --------
-  function resizeCanvasToDisplaySize(canvas) {
+  // High-DPI sizing
+  function resizeCanvasToDisplaySize() {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const rect = canvas.getBoundingClientRect(); // CSS pixels
-    const w = Math.max(1, Math.round(rect.width * dpr));
+    const rect = canvas.getBoundingClientRect();          // CSS px
+    const w = Math.max(1, Math.round(rect.width * dpr));  // backing px
     const h = Math.max(1, Math.round(rect.height * dpr));
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;
     }
-    // Scale drawing by DPR so we can keep using CSS pixel coordinates
+    // draw in CSS pixels by scaling once
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    status.textContent = `Canvas: CSS ${Math.round(rect.width)}×${Math.round(rect.height)} | Backing ${w}×${h} | DPR ${dpr.toFixed(2)}`;
   }
 
-  // -------- Globals that depend on size --------
+  // Data in lon/lat
   const ringsLonLat = fcToPolysLonLat(boundaryFC);
   const stationsLonLat = fcToPointsLonLat(stationsFC);
 
-  let projectedRings = [];        // [[ [x,y], ... ], ...] in Mercator
-  let toCanvas = (xy) => xy;      // function set after fit
-  let stationXY = [];             // stations in canvas pixels
+  // Derived (depends on size)
+  let projectedRings = [];
+  let toCanvas = (xy) => xy;
+  let stationXY = [];
 
   function fitProjectionAndPrecompute() {
-    // 1) Project boundary to Mercator
     projectedRings = ringsLonLat.map(r => r.map(([lon,lat]) => mercatorProject(lon,lat)));
 
-    // 2) Compute bounds in projected space
+    // bounds in projected space
     let minX=+Infinity, minY=+Infinity, maxX=-Infinity, maxY=-Infinity;
     for (const ring of projectedRings) {
       for (const [x,y] of ring) {
@@ -140,54 +143,45 @@ async function main() {
     }
     const pad = 0.04; minX -= pad; maxX += pad; minY -= pad; maxY += pad;
 
-    // 3) Build projected -> canvas transform using *CSS* size
+    // CSS size
     const cssW = canvas.clientWidth;
     const cssH = canvas.clientHeight;
+
     const sx = cssW / (maxX - minX);
     const sy = cssH / (maxY - minY);
-    const s = Math.min(sx, sy);
+    const s  = Math.min(sx, sy);
     const ox = (cssW - s*(maxX-minX))/2;
     const oy = (cssH - s*(maxY-minY))/2;
 
-    toCanvas = ([x,y]) => {
-      const cx = ox + s * (x - minX);
-      const cy = oy + s * (maxY - y); // flip Y
-      return [cx, cy];
-    };
-
-    // 4) Precompute station pixel coords
+    toCanvas = ([x,y]) => [ ox + s*(x - minX), oy + s*(maxY - y) ];
     stationXY = stationsLonLat.map(([lon,lat]) => toCanvas(mercatorProject(lon,lat)));
   }
 
-  // -------- Distance helpers --------
+  // Distances
   const palette = Array.from({length: 20}, (_,i) => `hsl(${(i*360/20)|0} 70% 45%)`);
-
   const rotate = (x,y,deg) => {
-    const t = deg * Math.PI/180, c = Math.cos(t), s = Math.sin(t);
+    const t = deg*Math.PI/180, c=Math.cos(t), s=Math.sin(t);
     return [ c*x + s*y, -s*x + c*y ];
   };
-
   function nearestIndexL1(x,y,deg=0) {
     if (deg) [x,y] = rotate(x,y,deg);
-    let bestIdx = 0, best = Infinity;
-    for (let i=0;i<stationXY.length;i++) {
+    let best=Infinity, idx=0;
+    for (let i=0;i<stationXY.length;i++){
       let [sx,sy] = stationXY[i];
       if (deg) [sx,sy] = rotate(sx,sy,deg);
-      const d = Math.abs(x - sx) + Math.abs(y - sy);
-      if (d < best) { best = d; bestIdx = i; }
+      const d = Math.abs(x-sx) + Math.abs(y-sy);
+      if (d<best){best=d; idx=i;}
     }
-    return bestIdx;
+    return idx;
   }
-
   function nearestIndexL2(x,y) {
-    let bestIdx = 0, best = Infinity;
-    for (let i=0;i<stationXY.length;i++) {
+    let best=Infinity, idx=0;
+    for (let i=0;i<stationXY.length;i++){
       const [sx,sy] = stationXY[i];
-      const dx = x - sx, dy = y - sy;
-      const d = dx*dx + dy*dy;
-      if (d < best) { best = d; bestIdx = i; }
+      const dx=x-sx, dy=y-sy, d=dx*dx+dy*dy;
+      if (d<best){best=d; idx=i;}
     }
-    return bestIdx;
+    return idx;
   }
 
   function setClip() {
@@ -204,7 +198,6 @@ async function main() {
     }
     ctx.clip('nonzero');
   }
-
   function drawOutline() {
     ctx.lineWidth = 2;
     ctx.strokeStyle = '#111';
@@ -220,14 +213,13 @@ async function main() {
     }
     ctx.stroke();
   }
-
   function drawStations() {
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#fff';
-    ctx.fillStyle = '#111';
+    ctx.fillStyle   = '#111';
     for (const [x,y] of stationXY) {
       ctx.beginPath();
-      ctx.arc(x, y, 2, 0, Math.PI*2);
+      ctx.arc(x,y,2,0,Math.PI*2);
       ctx.fill();
       ctx.stroke();
     }
@@ -235,8 +227,8 @@ async function main() {
 
   async function render() {
     const metric = metricEl.value;
-    const res = parseInt(resEl.value, 10);
-    const angle = parseFloat(angleEl.value);
+    const res    = parseInt(resEl.value,10);
+    const angle  = parseFloat(angleEl.value);
     angleVal.textContent = `${angle|0}°`;
     status.textContent = `Rendering (${metric.toUpperCase()} @ step=${res})…`;
 
@@ -250,9 +242,9 @@ async function main() {
     const band = 8*res;
     function step() {
       const xEnd = Math.min(W, x + band);
-      for (let xi = x; xi < xEnd; xi += res) {
-        for (let yi = 0; yi < H; yi += res) {
-          const idx = (metric === 'l1')
+      for (let xi=x; xi<xEnd; xi+=res) {
+        for (let yi=0; yi<H; yi+=res) {
+          const idx = (metric==='l1')
             ? nearestIndexL1(xi + 0.5*res, yi + 0.5*res, angle)
             : nearestIndexL2(xi + 0.5*res, yi + 0.5*res);
           ctx.fillStyle = palette[idx % palette.length];
@@ -260,9 +252,8 @@ async function main() {
         }
       }
       x = xEnd;
-      if (x < W) {
-        requestAnimationFrame(step);
-      } else {
+      if (x < W) requestAnimationFrame(step);
+      else {
         ctx.restore();
         drawOutline();
         drawStations();
@@ -272,27 +263,26 @@ async function main() {
     requestAnimationFrame(step);
   }
 
-  // -------- Wire up UI & resize --------
+  // UI
   metricEl.addEventListener('change', () => {
     angleWrap.style.display = (metricEl.value === 'l1') ? 'inline-flex' : 'none';
   });
-  angleEl.addEventListener('input', () => {
-    angleVal.textContent = `${angleEl.value}°`;
-  });
+  angleEl.addEventListener('input', () => { angleVal.textContent = `${angleEl.value}°`; });
   redrawBtn.addEventListener('click', render);
 
+  // Resize/redraw
   function handleResize() {
-    resizeCanvasToDisplaySize(canvas);  // set DPR backing store & context scale
-    fitProjectionAndPrecompute();       // recompute transforms for new size
-    render();                           // redraw
+    resizeCanvasToDisplaySize();
+    fitProjectionAndPrecompute();
+    render();
   }
   let resizeTimer;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(handleResize, 100);
+    resizeTimer = setTimeout(handleResize, 120);
   });
 
-  // -------- Initial draw --------
+  // First draw
   metricEl.dispatchEvent(new Event('change'));
   handleResize();
 }
