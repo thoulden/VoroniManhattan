@@ -427,7 +427,7 @@ function computeSiteColors() {
         ctx.restore();
         drawOutline();
         drawStations();
-        status.textContent = `Done. ${stationXY.length} ${which}.`;
+        status.innerHTML = `Done. ${stationXY.length} ${which}. <a href="https://www.mta.info/document/168976" target="_blank" rel="noopener">Color reference</a>`;
       }
     }
     requestAnimationFrame(step);
