@@ -41,16 +41,26 @@
 <body>
   <header>
     <strong>Manhattan Voronoi</strong>
+
+    <label>Dataset:
+      <select id="dataset">
+        <option value="stations" selected>Railway stations</option>
+        <option value="museums">Museums</option>
+      </select>
+    </label>
+
     <label>Metric:
       <select id="metric">
         <option value="l1" selected>Manhattan (L1)</option>
         <option value="l2">Euclidean (L2)</option>
       </select>
     </label>
+
     <label id="angleWrap">L1 angle:
       <input id="angle" type="range" min="-45" max="45" step="1" value="29" />
       <span id="angleVal">29°</span>
     </label>
+
     <label>Resolution (px):
       <select id="res">
         <option value="2" selected>Fast (2)</option>
@@ -59,6 +69,7 @@
         <option value="4">Fastest (4)</option>
       </select>
     </label>
+
     <button id="redraw">Redraw</button>
   </header>
 
@@ -75,6 +86,7 @@ async function main() {
   const ctx = canvas.getContext('2d', { willReadFrequently: false });
 
   // UI
+  const datasetEl = document.getElementById('dataset');
   const metricEl = document.getElementById('metric');
   const angleWrap = document.getElementById('angleWrap');
   const angleEl = document.getElementById('angle');
@@ -83,9 +95,10 @@ async function main() {
   const redrawBtn = document.getElementById('redraw');
 
   // -------- Load data --------
-  const [boundaryFC, stationsFC] = await Promise.all([
+  const [boundaryFC, stationsFC, museumsFC] = await Promise.all([
     fetch('./data/manhattan_boundary.geojson').then(r => r.json()),
-    fetch('./data/manhattan_stations.geojson').then(r => r.json())
+    fetch('./data/manhattan_stations.geojson').then(r => r.json()),
+    fetch('./data/manhattan_museums.geojson').then(r => r.json()),
   ]);
 
   // -------- Geo helpers --------
@@ -99,7 +112,6 @@ async function main() {
     return [x, y];
   };
 
-  // Heuristic: does a ring look like lon/lat?
   const ringLooksLikeLonLat = (ring) => {
     const n = Math.min(ring.length, 50);
     for (let i=0;i<n;i++) {
@@ -109,7 +121,6 @@ async function main() {
     return true;
   };
 
-  // Largest outer ring from boundary
   function largestOuterRing(fc) {
     function ringArea(r) {
       let A=0; for (let i=0,j=r.length-1;i<r.length;j=i++) {
@@ -132,36 +143,36 @@ async function main() {
     return best || [];
   }
 
-  // Stations (Points only), fix swapped lon/lat if needed, keep NYC-ish bbox
-  function stationsLonLatClean(fc) {
+  function pointsLonLatClean(fc) {
     const pts=[];
     for (const f of fc.features) {
-      const g=f.geometry; if (g?.type!=='Point') continue;
-      let [a,b]=g.coordinates;
-      let lon=a, lat=b;
-      if (!(lon>-180&&lon<180&&lat>-90&&lat<90) &&
-          (b>-180&&b<180&&a>-90&&a<90)) { lon=b; lat=a; }
-      if (lon>-75 && lon<-72 && lat>40 && lat<41) pts.push([lon,lat]);
+      const g=f.geometry; if (!g) continue;
+      if (g.type === 'Point') {
+        let [a,b] = g.coordinates;
+        let lon=a, lat=b;
+        // swap if likely lat,lon
+        if (!(lon>-180&&lon<180&&lat>-90&&lat<90) && (b>-180&&b<180&&a>-90&&a<90)) {
+          lon=b; lat=a;
+        }
+        // NYC-ish bbox filter
+        if (lon>-75 && lon<-72 && lat>40 && lat<41) pts.push([lon,lat]);
+      }
     }
     return pts;
   }
 
-  // -------- Parse boundary + detect CRS --------
-  const boundaryRingRaw = largestOuterRing(boundaryFC); // [[x,y],...]
+  // -------- Boundary & datasets in meters --------
+  const boundaryRingRaw = largestOuterRing(boundaryFC);
   const boundaryIsLonLat = ringLooksLikeLonLat(boundaryRingRaw);
-
-  // Project boundary to meters if needed
   const boundaryRingMeters = boundaryIsLonLat
     ? boundaryRingRaw.map(([lon,lat]) => projectLonLatToMeters(lon,lat))
-    : boundaryRingRaw; // already meters
+    : boundaryRingRaw;
 
-  // Project stations to meters
-  const stationsLonLat = stationsLonLatClean(stationsFC);
+  const stationsLonLat = pointsLonLatClean(stationsFC);
+  const museumsLonLat  = pointsLonLatClean(museumsFC);
+
   const stationsMeters = stationsLonLat.map(([lon,lat]) => projectLonLatToMeters(lon,lat));
-
-  // Debug hooks (optional)
-  window.__debugBoundaryCRS = boundaryIsLonLat ? 'lonlat' : 'meters';
-  window.__debugStations = stationsLonLat.slice(0,5);
+  const museumsMeters  = museumsLonLat.map(([lon,lat])  => projectLonLatToMeters(lon,lat));
 
   // -------- Canvas sizing / transforms --------
   function resizeCanvasToDisplaySize(cv) {
@@ -175,11 +186,19 @@ async function main() {
 
   let toCanvas = (xy)=>xy;
   let projectedRing = boundaryRingMeters;
+
+  // Active dataset (starts with stations)
+  let currentPointsMeters = stationsMeters;
   let stationXY = [];
 
+  function setDataset(kind) {
+    currentPointsMeters = (kind === 'museums') ? museumsMeters : stationsMeters;
+    fitProjectionAndPrecompute();
+  }
+
   function fitProjectionAndPrecompute() {
-    // Use boundary for viewport (fallback to stations if empty)
-    const src = projectedRing.length ? projectedRing : stationsMeters;
+    // Use boundary for viewport (fallback: current points if boundary empty)
+    const src = projectedRing.length ? projectedRing : currentPointsMeters;
     let minX=+Infinity, minY=+Infinity, maxX=-Infinity, maxY=-Infinity;
     for (const [x,y] of src) {
       if (x<minX) minX=x; if (x>maxX) maxX=x;
@@ -196,11 +215,7 @@ async function main() {
     const oy = (cssH - s*(maxY-minY))/2;
 
     toCanvas = ([x,y]) => [ ox + s*(x - minX), oy + s*(maxY - y) ];
-    stationXY = stationsMeters.map(([x,y]) => toCanvas([x,y]));
-    // quick sanity
-    console.log('CRS:', window.__debugBoundaryCRS,
-                'canvas CSS:', cssW, cssH,
-                'stations:', stationXY.length);
+    stationXY = currentPointsMeters.map(([x,y]) => toCanvas([x,y]));
   }
 
   // -------- Distance + drawing helpers --------
@@ -266,23 +281,25 @@ async function main() {
   }
 
   function drawStations() {
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.5;
     ctx.strokeStyle = '#fff';
     ctx.fillStyle = '#111';
     for (const [x,y] of stationXY) {
       ctx.beginPath();
-      ctx.arc(x, y, 2, 0, Math.PI*2);
+      ctx.arc(x, y, 1.6, 0, Math.PI*2); // marker radius ~1.6 px (compact)
       ctx.fill();
       ctx.stroke();
     }
   }
 
   async function render() {
+    const which = datasetEl.value;
     const metric = metricEl.value;
     const res = parseInt(resEl.value, 10);
     const angle = parseFloat(angleEl.value);
     angleVal.textContent = `${angle|0}°`;
-    status.textContent = `Rendering (${metric.toUpperCase()} @ step=${res})…`;
+
+    status.textContent = `Rendering ${which} (${metric.toUpperCase()} @ step=${res})…`;
 
     ctx.clearRect(0,0,canvas.width,canvas.height);
     setClip();
@@ -310,7 +327,7 @@ async function main() {
         ctx.restore();
         drawOutline();
         drawStations();
-        status.textContent = `Done. ${stationXY.length} stations.`;
+        status.textContent = `Done. ${stationXY.length} ${which}.`;
       }
     }
     requestAnimationFrame(step);
@@ -325,6 +342,11 @@ async function main() {
   });
   redrawBtn.addEventListener('click', render);
 
+  datasetEl.addEventListener('change', () => {
+    setDataset(datasetEl.value);
+    render();
+  });
+
   function resizeAndRedraw() {
     resizeCanvasToDisplaySize(canvas);
     fitProjectionAndPrecompute();
@@ -338,6 +360,7 @@ async function main() {
 
   // -------- Initial draw --------
   metricEl.dispatchEvent(new Event('change'));
+  setDataset(datasetEl.value);   // initialize dataset (stations by default)
   resizeAndRedraw();
 }
 
@@ -348,3 +371,4 @@ main().catch(err => {
 </script>
 </body>
 </html>
+
