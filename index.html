@@ -383,9 +383,10 @@ function computeSiteColors() {
             ? nearestIndexL1(xi + 0.5*res, yi + 0.5*res, angle)
             : nearestIndexL2(xi + 0.5*res, yi + 0.5*res);
 
-          const color = siteColor[idx] ?? MTA_COLORS[idx % MTA_COLORS.length];
-          ctx.fillStyle = color;
+          const colorIdx = siteColor[idx] ?? (idx % MTA_COLORS.length);
+          ctx.fillStyle = MTA_COLORS[colorIdx];
           ctx.fillRect(xi, yi, res, res);
+
         }
       }
       x = xEnd;
