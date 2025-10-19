@@ -80,18 +80,20 @@
   <div id="status">Loading…</div>
 
 <script type="module">
+import { Delaunay } from "https://cdn.jsdelivr.net/npm/d3-delaunay@6/+esm";
+
 async function main() {
-  const status = document.getElementById('status');
-  const canvas = document.getElementById('c');
-  const ctx = canvas.getContext('2d', { willReadFrequently: false });
+  const status   = document.getElementById('status');
+  const canvas   = document.getElementById('c');
+  const ctx      = canvas.getContext('2d', { willReadFrequently: false });
 
   // UI
-  const datasetEl = document.getElementById('dataset');
-  const metricEl = document.getElementById('metric');
+  const datasetEl = document.getElementById('dataset'); // must exist in your header
+  const metricEl  = document.getElementById('metric');
   const angleWrap = document.getElementById('angleWrap');
-  const angleEl = document.getElementById('angle');
-  const angleVal = document.getElementById('angleVal');
-  const resEl = document.getElementById('res');
+  const angleEl   = document.getElementById('angle');
+  const angleVal  = document.getElementById('angleVal');
+  const resEl     = document.getElementById('res');
   const redrawBtn = document.getElementById('redraw');
 
   // -------- Load data --------
@@ -191,6 +193,23 @@ async function main() {
   let currentPointsMeters = stationsMeters;
   let stationXY = [];
 
+  // Neighbor-aware colors
+  const MTA_COLORS = [
+    '#0062CF', // A/C/E blue
+    '#EB6800', // B/D/F/M orange
+    '#799534', // G light green
+    '#8E5C33', // J/Z brown
+    '#F6BC26', // N/Q/R/W yellow
+    '#D82233', // 1/2/3 red
+    '#009952', // 4/5/6 dark green
+    '#9A38A1', // 7 purple
+    '#008EB7', // T teal (proposed)
+    '#7C858C', // S/L grey (extra)
+    '#00A1DE', // bright teal (extra)
+    '#4D4D4D'  // charcoal (extra)
+  ];
+  let siteColor = []; // color per site index
+
   function setDataset(kind) {
     currentPointsMeters = (kind === 'museums') ? museumsMeters : stationsMeters;
     fitProjectionAndPrecompute();
@@ -216,27 +235,11 @@ async function main() {
 
     toCanvas = ([x,y]) => [ ox + s*(x - minX), oy + s*(maxY - y) ];
     stationXY = currentPointsMeters.map(([x,y]) => toCanvas([x,y]));
+
+    computeSiteColors(); // recompute colors whenever points/size change
   }
 
   // -------- Distance + drawing helpers --------
-  // MTA line colors (A,B,G,J,S,L,N,1,4,7,T samples)
-  // Source: https://www.mta.info/document/168976
-  const MTA_COLORS = [
-    '#0062CF', // A (Blue)  — also C/E
-    '#EB6800', // B (Orange) — also D/F/M
-    '#799534', // G (Light Green)
-    '#8E5C33', // J (Brown)  — also Z
-    // '#7C858C', // S/L (Gray)
-     '#F6BC26', // N (Yellow) — also Q/R/W
-    '#D82233', // 1 (Red)    — also 2/3
-    '#009952', // 4 (Dark Green) — also 5/6
-    '#9A38A1', // 7 (Purple)
-    '#008EB7', // T (Teal, proposed)
-  ];
-
-// Use MTA colors, repeating when we run out
-const palette = MTA_COLORS;
-
   const rotate = (x,y,deg) => {
     const t = deg * Math.PI/180, c = Math.cos(t), s = Math.sin(t);
     return [ c*x + s*y, -s*x + c*y ];
@@ -263,6 +266,37 @@ const palette = MTA_COLORS;
       if (d < best) { best = d; bestIdx = i; }
     }
     return bestIdx;
+  }
+
+  // Build neighbor-aware colors via Delaunay → greedy coloring
+  function computeSiteColors() {
+    const n = stationXY.length;
+    siteColor = Array(n).fill(null);
+    if (n === 0) return;
+
+    const delaunay = Delaunay.from(stationXY);
+    const neighbors = Array.from({length:n}, () => new Set());
+
+    for (let i=0; i<n; i++) {
+      for (const j of delaunay.neighbors(i)) {
+        neighbors[i].add(j);
+        neighbors[j].add(i);
+      }
+    }
+
+    // Welsh–Powell ordering (high degree first)
+    const order = Array.from({length:n}, (_,i)=>i)
+      .sort((a,b) => neighbors[b].size - neighbors[a].size);
+
+    for (const v of order) {
+      const used = new Set();
+      for (const u of neighbors[v]) {
+        const c = siteColor[u];
+        if (c) used.add(c);
+      }
+      const pick = MTA_COLORS.find(c => !used.has(c)) || MTA_COLORS[0];
+      siteColor[v] = pick;
+    }
   }
 
   function setClip() {
@@ -302,7 +336,7 @@ const palette = MTA_COLORS;
     ctx.fillStyle = '#111';
     for (const [x,y] of stationXY) {
       ctx.beginPath();
-      ctx.arc(x, y, 1.6, 0, Math.PI*2); // marker radius ~1.6 px (compact)
+      ctx.arc(x, y, 1.6, 0, Math.PI*2); // compact markers
       ctx.fill();
       ctx.stroke();
     }
@@ -314,7 +348,6 @@ const palette = MTA_COLORS;
     const res = parseInt(resEl.value, 10);
     const angle = parseFloat(angleEl.value);
     angleVal.textContent = `${angle|0}°`;
-
     status.textContent = `Rendering ${which} (${metric.toUpperCase()} @ step=${res})…`;
 
     ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -332,7 +365,9 @@ const palette = MTA_COLORS;
           const idx = (metric === 'l1')
             ? nearestIndexL1(xi + 0.5*res, yi + 0.5*res, angle)
             : nearestIndexL2(xi + 0.5*res, yi + 0.5*res);
-          ctx.fillStyle = palette[idx % palette.length];
+
+          const color = siteColor[idx] || MTA_COLORS[idx % MTA_COLORS.length];
+          ctx.fillStyle = color;
           ctx.fillRect(xi, yi, res, res);
         }
       }
@@ -376,7 +411,7 @@ const palette = MTA_COLORS;
 
   // -------- Initial draw --------
   metricEl.dispatchEvent(new Event('change'));
-  setDataset(datasetEl.value);   // initialize dataset (stations by default)
+  setDataset(datasetEl.value || 'stations');   // initialize
   resizeAndRedraw();
 }
 
