@@ -347,10 +347,10 @@ function computeSiteColors() {
   function drawStations() {
     ctx.lineWidth = 2.5;
     ctx.strokeStyle = '#fff';
-    ctx.fillStyle = '#111';
+    // ctx.fillStyle = '#111'; if you want a black pixel in the middle
     for (const [x,y] of stationXY) {
       ctx.beginPath();
-      ctx.arc(x, y, 1.6, 0, Math.PI*2); // compact markers
+      ctx.arc(x, y, 0.8, 0, Math.PI*2); // compact markers
       ctx.fill();
       ctx.stroke();
     }
