@@ -37,8 +37,17 @@
   button:hover { border-color: var(--accent); }
 
   /* Map area */
-  #container { position: relative; height: 100%; }
-  canvas { display:block; width: 100%; height: 100%; background: var(--bg); }
+  /* let the rotated canvas extend beyond its box if needed */
+  #container { overflow: visible; }
+
+  /* hard-code the map tilt so Manhattan is vertical-ish */
+  #c {
+    transform: rotate(-29deg);            /* clockwise 29° */
+    transform-origin: 50% 50%;            /* rotate around center */
+    /* Optional: shrink slightly so edges never clip:
+       transform: rotate(-29deg) scale(0.96); */
+  }
+
 
   /* Big stacked title overlay (top-left of the map area) */
   #bigTitle {
