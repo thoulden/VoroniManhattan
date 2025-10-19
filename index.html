@@ -219,7 +219,23 @@ async function main() {
   }
 
   // -------- Distance + drawing helpers --------
-  const palette = Array.from({length: 20}, (_,i) => `hsl(${(i*360/20)|0} 70% 45%)`);
+  // MTA line colors (A,B,G,J,S,L,N,1,4,7,T samples)
+  // Source: https://www.mta.info/document/168976
+  const MTA_COLORS = [
+    '#0062CF', // A (Blue)  — also C/E
+    '#EB6800', // B (Orange) — also D/F/M
+    '#799534', // G (Light Green)
+    '#8E5C33', // J (Brown)  — also Z
+    '#7C858C', // S/L (Gray)
+    '#F6BC26', // N (Yellow) — also Q/R/W
+    '#D82233', // 1 (Red)    — also 2/3
+    '#009952', // 4 (Dark Green) — also 5/6
+    '#9A38A1', // 7 (Purple)
+    '#008EB7', // T (Teal, proposed)
+  ];
+
+// Use MTA colors, repeating when we run out
+const palette = MTA_COLORS;
 
   const rotate = (x,y,deg) => {
     const t = deg * Math.PI/180, c = Math.cos(t), s = Math.sin(t);
