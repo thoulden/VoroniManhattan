@@ -63,8 +63,7 @@
   <div id="status">Loading…</div>
 
 <script type="module">
-/* === tweaks requested === */
-const MAP_ROTATE_DEG = -29; // rotate the whole map so Manhattan looks “straight”
+const MAP_ROTATE_DEG = -29; // rotate whole map so Manhattan looks upright
 
 async function main() {
   const status = document.getElementById('status');
@@ -79,204 +78,146 @@ async function main() {
   const resEl = document.getElementById('res');
   const redrawBtn = document.getElementById('redraw');
 
-  // -------- Load data --------
+  // ---- Load data ----
   const [boundaryFC, stationsFC] = await Promise.all([
     fetch('./data/manhattan_boundary.geojson').then(r => r.json()),
     fetch('./data/manhattan_stations.geojson').then(r => r.json())
   ]);
 
-  // -------- Robust GeoJSON helpers --------
-  function normalizeLonLat(a, b) {
-    const inLon = (x) => x > -180 && x < -60; // longitudes that include NYC
-    const inLat = (x) => x > 20 && x < 55;    // latitudes that include NYC
-    if (inLon(a) && inLat(b)) return [a,b];
-    if (inLon(b) && inLat(a)) return [b,a];
-    return [a,b];
-  }
+  // ---- Geo helpers ----
+  const inLon = (x) => x > -180 && x < -60;
+  const inLat = (x) => x > 20 && x < 55;
+  const normalizeLonLat = (a,b) => (inLon(a)&&inLat(b)) ? [a,b] : (inLon(b)&&inLat(a)) ? [b,a] : [a,b];
 
-  function ringArea(ring) {
-    let a = 0;
-    for (let i=0, j=ring.length-1; i<ring.length; j=i++) {
-      const [x0,y0] = ring[j], [x1,y1] = ring[i];
-      a += x0*y1 - x1*y0;
+  function ringArea(ring){let a=0;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const [x0,y0]=ring[j],[x1,y1]=ring[i];a+=x0*y1-x1*y0;}return a/2;}
+  function largestOuterRing(fc){
+    let best=null,area=-Infinity;
+    for(const f of fc.features||[]){const g=f.geometry;if(!g)continue;
+      if(g.type==='Polygon'){const r=g.coordinates[0];const A=Math.abs(ringArea(r));if(A>area){area=A;best=r;}}
+      else if(g.type==='MultiPolygon'){for(const p of g.coordinates){const r=p[0];const A=Math.abs(ringArea(r));if(A>area){area=A;best=r;}}}
     }
-    return a/2;
+    return (best||[]).map(([a,b])=>normalizeLonLat(a,b));
   }
-
-  function largestOuterRing(featureCollection) {
-    let best = null, bestArea = -Infinity;
-    for (const f of featureCollection.features) {
-      const g = f.geometry;
-      if (!g) continue;
-      if (g.type === 'Polygon') {
-        const ring = g.coordinates[0];
-        const area = Math.abs(ringArea(ring));
-        if (area > bestArea) { bestArea = area; best = ring; }
-      } else if (g.type === 'MultiPolygon') {
-        for (const poly of g.coordinates) {
-          const ring = poly[0];
-          const area = Math.abs(ringArea(ring));
-          if (area > bestArea) { bestArea = area; best = ring; }
-        }
-      }
-    }
-    return (best || []).map(([a,b]) => normalizeLonLat(a,b));
-  }
-
-  function stationsLonLatClean(fc) {
-    const pts = [];
-    for (const feat of fc.features) {
-      const g = feat.geometry;
-      if (g?.type === 'Point') {
-        const [a,b] = g.coordinates;
-        const [lon,lat] = normalizeLonLat(a,b);
-        if (lon > -75 && lon < -72 && lat > 40 && lat < 41) pts.push([lon,lat]);
-      }
-    }
+  function stationsLonLatClean(fc){
+    const pts=[]; for(const f of fc.features||[]){const g=f.geometry;if(g?.type==='Point'){const [a,b]=g.coordinates;const [lon,lat]=normalizeLonLat(a,b);if(lon>-75&&lon<-72&&lat>40&&lat<41) pts.push([lon,lat]);}}
     return pts;
   }
 
-  // -------- Projection & sizing --------
-  function mercatorProject(lon, lat) {
-    const λ = lon * Math.PI/180;
-    const φ = Math.max(Math.min(lat* Math.PI/180, Math.PI/2 - 1e-6), -Math.PI/2 + 1e-6);
+  // ---- Projection ----
+  const merc = (lon,lat)=> {
+    const λ = lon*Math.PI/180;
+    const φ = Math.max(Math.min(lat*Math.PI/180, Math.PI/2-1e-6), -Math.PI/2+1e-6);
     return [λ, Math.log(Math.tan(Math.PI/4 + φ/2))];
-  }
+  };
 
-  function resizeCanvasToDisplaySize(canvas) {
+  // Data (projected)
+  const ringLonLat = largestOuterRing(boundaryFC);
+  const ptsLonLat  = stationsLonLatClean(stationsFC);
+  const ringProj   = ringLonLat.map(([lon,lat])=>merc(lon,lat));
+  const ptsProj    = ptsLonLat.map(([lon,lat])=>merc(lon,lat));
+
+  // Canvas size / DPR
+  function resizeCanvasToDisplaySize() {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const rect = canvas.getBoundingClientRect();
     const w = Math.max(1, Math.round(rect.width * dpr));
     const h = Math.max(1, Math.round(rect.height * dpr));
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
-    }
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // use CSS pixels for drawing
   }
 
-  const boundaryRingLonLat = largestOuterRing(boundaryFC); // [[lon,lat],...]
-  const stationsLonLat     = stationsLonLatClean(stationsFC); // [[lon,lat],...]
-
-  // Work in projected meters-ish coordinates
-  const projectedRing = boundaryRingLonLat.map(([lon,lat]) => mercatorProject(lon,lat));
-  const stationProj   = stationsLonLat.map(([lon,lat]) => mercatorProject(lon,lat));
-
-  let toCanvas = (xy)=>xy;    // set after fit
-  let stationXY = [];         // stations in canvas pixels (rotated)
-
-  function fitProjectionAndPrecompute() {
-    // Use station bounds for viewport (fallback to boundary if empty)
-    const coordsForBbox = stationProj.length ? stationProj : projectedRing;
-    let minX=+Infinity, minY=+Infinity, maxX=-Infinity, maxY=-Infinity;
-    for (const [x,y] of coordsForBbox) {
-      if (x<minX) minX=x; if (x>maxX) maxX=x;
-      if (y<minY) minY=y; if (y>maxY) maxY=y;
-    }
-    const pad = 0.06; minX -= pad; maxX += pad; minY -= pad; maxY += pad;
-
-    const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
-    const sx = cssW / (maxX - minX);
-    const sy = cssH / (maxY - minY);
-    const s  = Math.min(sx, sy);
-    const ox = (cssW - s*(maxX-minX))/2;
-    const oy = (cssH - s*(maxY-minY))/2;
-
-    // base mapping (projected → canvas)
-    const baseToCanvas = ([x,y]) => [ ox + s*(x - minX), oy + s*(maxY - y) ];
-
-    // rotate map around canvas center
-    const cx = cssW / 2, cy = cssH / 2;
-    const t  = MAP_ROTATE_DEG * Math.PI / 180;
-    const c  = Math.cos(t), s1 = Math.sin(t);
-    function rotateAround(px, py) {
-      const dx = px - cx, dy = py - cy;
-      return [ cx + c*dx - s1*dy, cy + s1*dx + c*dy ];
-    }
-
-    toCanvas = (pt) => rotateAround(...baseToCanvas(pt));
-    stationXY = stationProj.map(([x,y]) => toCanvas([x,y]));
+  // Rotation in projected space (so bbox uses rotated geometry)
+  function rotateXY([x,y], deg, [cx,cy]){
+    const t = deg*Math.PI/180, c=Math.cos(t), s=Math.sin(t);
+    const dx=x-cx, dy=y-cy;
+    return [ cx + c*dx - s*dy, cy + s*dx + c*dy ];
   }
 
-  // -------- Distance helpers --------
-  const palette = Array.from({length: 20}, (_,i) => `hsl(${(i*360/20)|0} 70% 45%)`);
+  // Globals derived from size
+  let toCanvas = (xy)=>xy;
+  let ringRot = [], ptsRot = [], stationXY = [];
 
-  const rotate = (x,y,deg) => {
-    const t = deg * Math.PI/180, c = Math.cos(t), s = Math.sin(t);
-    return [ c*x + s*y, -s*x + c*y ];
-  };
+  function fitProjectionAndPrecompute(){
+    // Base bbox (unrotated) to get a sensible rotation center
+    const src = ptsProj.length ? ptsProj : ringProj;
+    let minX=+Infinity,minY=+Infinity,maxX=-Infinity,maxY=-Infinity;
+    for(const [x,y] of src){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
+    const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
 
-  function nearestIndexL1(x,y,deg=0) {
-    if (deg) [x,y] = rotate(x,y,deg);
-    let bestIdx = 0, best = Infinity;
-    for (let i=0;i<stationXY.length;i++) {
-      let [sx,sy] = stationXY[i];
-      if (deg) [sx,sy] = rotate(sx,sy,deg);
-      const d = Math.abs(x - sx) + Math.abs(y - sy);
-      if (d < best) { best = d; bestIdx = i; }
-    }
-    return bestIdx;
+    // Rotate data first
+    ringRot = ringProj.map(p=>rotateXY(p, MAP_ROTATE_DEG, [cx,cy]));
+    ptsRot  = ptsProj.map(p=>rotateXY(p,  MAP_ROTATE_DEG, [cx,cy]));
+
+    // Bbox of rotated data (use stations if present)
+    const srcR = ptsRot.length ? ptsRot : ringRot;
+    minX=+Infinity;minY=+Infinity;maxX=-Infinity;maxY=-Infinity;
+    for(const [x,y] of srcR){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
+    const pad=0.06; minX-=pad; maxX+=pad; minY-=pad; maxY+=pad;
+
+    // Build linear map from rotated space to canvas CSS pixels
+    const W=canvas.clientWidth, H=canvas.clientHeight;
+    const sx=W/(maxX-minX), sy=H/(maxY-minY), s=Math.min(sx,sy);
+    const ox=(W - s*(maxX-minX))/2, oy=(H - s*(maxY-minY))/2;
+
+    toCanvas = ([x,y]) => [ ox + s*(x - minX), oy + s*(maxY - y) ];
+    stationXY = ptsRot.map(([x,y]) => toCanvas([x,y]));
   }
 
-  function nearestIndexL2(x,y) {
-    let bestIdx = 0, best = Infinity;
-    for (let i=0;i<stationXY.length;i++) {
-      const [sx,sy] = stationXY[i];
-      const dx = x - sx, dy = y - sy;
-      const d = dx*dx + dy*dy;
-      if (d < best) { best = d; bestIdx = i; }
+  // ---- Distance helpers ----
+  const palette = Array.from({length: 20}, (_,i)=>`hsl(${(i*360/20)|0} 70% 45%)`);
+  const rotL1 = (x,y,deg)=>{ const t=deg*Math.PI/180,c=Math.cos(t),s=Math.sin(t); return [c*x + s*y, -s*x + c*y]; };
+
+  function nearestIndexL1(x,y,deg=0){
+    if (deg) [x,y] = rotL1(x,y,deg);
+    let best=Infinity, idx=0;
+    for (let i=0;i<stationXY.length;i++){
+      let [sx,sy]=stationXY[i];
+      if (deg) [sx,sy] = rotL1(sx,sy,deg);
+      const d = Math.abs(x-sx) + Math.abs(y-sy);
+      if (d<best){best=d; idx=i;}
     }
-    return bestIdx;
+    return idx;
+  }
+  function nearestIndexL2(x,y){
+    let best=Infinity, idx=0;
+    for (let i=0;i<stationXY.length;i++){
+      const [sx,sy]=stationXY[i], dx=x-sx, dy=y-sy, d=dx*dx+dy*dy;
+      if (d<best){best=d; idx=i;}
+    }
+    return idx;
   }
 
-  // -------- Drawing --------
-  function setClip() {
+  // ---- Drawing ----
+  function setClip(){
     ctx.save();
     ctx.beginPath();
-    if (projectedRing.length) {
-      const [x0,y0] = toCanvas(projectedRing[0]);
-      ctx.moveTo(x0,y0);
-      for (let i=1;i<projectedRing.length;i++) {
-        const [xi,yi] = toCanvas(projectedRing[i]);
-        ctx.lineTo(xi,yi);
-      }
+    if (ringRot.length){
+      const [x0,y0]=toCanvas(ringRot[0]); ctx.moveTo(x0,y0);
+      for (let i=1;i<ringRot.length;i++){ const [xi,yi]=toCanvas(ringRot[i]); ctx.lineTo(xi,yi); }
       ctx.closePath();
     }
     ctx.clip('nonzero');
   }
 
-  function drawOutline() {
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#111';
-    ctx.beginPath();
-    if (projectedRing.length) {
-      const [x0,y0] = toCanvas(projectedRing[0]);
-      ctx.moveTo(x0,y0);
-      for (let i=1;i<projectedRing.length;i++) {
-        const [xi,yi] = toCanvas(projectedRing[i]);
-        ctx.lineTo(xi,yi);
-      }
+  function drawOutline(){
+    ctx.lineWidth=3; ctx.strokeStyle='#111'; ctx.beginPath();
+    if (ringRot.length){
+      const [x0,y0]=toCanvas(ringRot[0]); ctx.moveTo(x0,y0);
+      for (let i=1;i<ringRot.length;i++){ const [xi,yi]=toCanvas(ringRot[i]); ctx.lineTo(xi,yi); }
       ctx.closePath();
     }
     ctx.stroke();
   }
 
-  // smaller station dots (half size)
-  function drawStations() {
-    ctx.lineWidth = 2;          // was 3
-    ctx.strokeStyle = '#fff';
-    ctx.fillStyle = '#111';
-    for (const [x,y] of stationXY) {
-      ctx.beginPath();
-      ctx.arc(x, y, 1, 0, Math.PI*2); // was 2
-      ctx.fill();
-      ctx.stroke();
-    }
+  // station dots half size
+  function drawStations(){
+    ctx.lineWidth=2; ctx.strokeStyle='#fff'; ctx.fillStyle='#111';
+    for (const [x,y] of stationXY){ ctx.beginPath(); ctx.arc(x,y,1,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
   }
 
-  async function render() {
+  async function render(){
     const metric = metricEl.value;
-    const res = parseInt(resEl.value, 10);
+    const res = parseInt(resEl.value,10);
     const angle = parseFloat(angleEl.value);
     angleVal.textContent = `${angle|0}°`;
     status.textContent = `Rendering (${metric.toUpperCase()} @ step=${res})…`;
@@ -284,56 +225,39 @@ async function main() {
     ctx.clearRect(0,0,canvas.width,canvas.height);
     setClip();
 
-    const W = canvas.clientWidth;
-    const H = canvas.clientHeight;
-
-    let x = 0;
-    const band = 8*res; // columns per frame
-    function step() {
-      const xEnd = Math.min(W, x + band);
-      for (let xi = x; xi < xEnd; xi += res) {
-        for (let yi = 0; yi < H; yi += res) {
-          const idx = (metric === 'l1')
-            ? nearestIndexL1(xi + 0.5*res, yi + 0.5*res, angle)
-            : nearestIndexL2(xi + 0.5*res, yi + 0.5*res);
+    const W=canvas.clientWidth, H=canvas.clientHeight;
+    let x=0; const band=8*res;
+    function step(){
+      const xEnd=Math.min(W, x+band);
+      for (let xi=x; xi<xEnd; xi+=res){
+        for (let yi=0; yi<H; yi+=res){
+          const idx = (metric==='l1')
+            ? nearestIndexL1(xi+0.5*res, yi+0.5*res, angle)
+            : nearestIndexL2(xi+0.5*res, yi+0.5*res);
           ctx.fillStyle = palette[idx % palette.length];
           ctx.fillRect(xi, yi, res, res);
         }
       }
-      x = xEnd;
-      if (x < W) {
-        requestAnimationFrame(step);
-      } else {
-        ctx.restore();
-        drawOutline();
-        drawStations();
-        status.textContent = `Done. ${stationXY.length} stations.`;
-      }
+      x=xEnd;
+      if (x<W) requestAnimationFrame(step);
+      else { ctx.restore(); drawOutline(); drawStations(); status.textContent=`Done. ${stationXY.length} stations.`; }
     }
     requestAnimationFrame(step);
   }
 
-  // -------- UI & resize wiring --------
-  metricEl.addEventListener('change', () => {
-    angleWrap.style.display = (metricEl.value === 'l1') ? 'inline-flex' : 'none';
-  });
-  angleEl.addEventListener('input', () => {
-    angleVal.textContent = `${angleEl.value}°`;
-  });
+  // ---- Wire up ----
+  metricEl.addEventListener('change', ()=>{ angleWrap.style.display=(metricEl.value==='l1')?'inline-flex':'none'; });
+  angleEl.addEventListener('input', ()=>{ angleVal.textContent = `${angleEl.value}°`; });
   redrawBtn.addEventListener('click', render);
 
-  function handleResize() {
-    resizeCanvasToDisplaySize(canvas);
+  function handleResize(){
+    resizeCanvasToDisplaySize();
     fitProjectionAndPrecompute();
     render();
   }
-  let resizeTimer;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(handleResize, 80);
-  });
+  let t; window.addEventListener('resize', ()=>{ clearTimeout(t); t=setTimeout(handleResize,80); });
 
-  // -------- Initial draw --------
+  // Initial
   metricEl.dispatchEvent(new Event('change'));
   handleResize();
 }
