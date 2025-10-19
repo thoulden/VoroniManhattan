@@ -3,13 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Manhattan Voronoi (L1 / L2)</title>
+<title>Manhattan Voronoi</title>
+
 <style>
   :root {
-    --bg:#f8f7f2;
-    --fg:#111;
-    --accent:#0b6;
-    /* Prefer Helvetica (like MTA), with solid fallbacks */
+    --bg:#f8f7f2; --fg:#111; --accent:#0b6;
     --subway-sans: "Helvetica Neue", Helvetica, Arial, "Nimbus Sans",
                    "Liberation Sans", system-ui, sans-serif;
   }
@@ -23,17 +21,12 @@
     background: var(--bg); color: var(--fg);
     display: grid; grid-template-rows: auto 1fr auto;
   }
+
+  /* Header with controls (title removed from here) */
   header {
-    padding: 10px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    padding: 10px 16px;
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
     border-bottom: 1px solid #e5e5e5;
-  }
-  /* On-page title styled like subway signage */
-  header strong {
-    font-family: var(--subway-sans);
-    font-weight: 700;
-    font-size: 20px;       /* tweak as desired */
-    letter-spacing: 0.2px;
-    line-height: 1;
   }
   header > * { font-size: 14px; }
   label { display: inline-flex; align-items: center; gap: 6px; }
@@ -42,13 +35,35 @@
     border-radius: 8px; cursor: pointer;
   }
   button:hover { border-color: var(--accent); }
+
+  /* Map area */
   #container { position: relative; height: 100%; }
-  canvas {
-    display:block;
-    width: 100%;
-    height: 100%;
-    background: var(--bg);
+  canvas { display:block; width: 100%; height: 100%; background: var(--bg); }
+
+  /* Big stacked title overlay (top-left of the map area) */
+  #bigTitle {
+    position: absolute;
+    top: clamp(12px, 2.5vw, 28px);
+    left: clamp(12px, 2.5vw, 28px);
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0.04em;
+    pointer-events: none; /* so it never blocks clicks/drag */
+    line-height: 0.9;
+    /* Responsive size: min 42px, scales with viewport, caps at 160px */
+    font-size: clamp(42px, 9vw, 160px);
+    font-weight: 800;  /* bold, like signage */
+    letter-spacing: 0.2px;
+    color: #111;
+    /* subtle outline so text stays legible on any colors */
+    text-shadow:
+      -1px -1px 0 #fff,
+       1px -1px 0 #fff,
+      -1px  1px 0 #fff,
+       1px  1px 0 #fff,
+       0   0 6px #fff;
   }
+  #bigTitle span { display:block; }
+
+  /* Footer status */
   #status {
     text-align:center; padding: 8px 12px; font-size: 13px; color:#666;
     border-top: 1px solid #e5e5e5;
@@ -57,27 +72,23 @@
 </head>
 <body>
   <header>
-    <strong>Manhattan Voronoi</strong>
-
+    <!-- Title removed from header per your request -->
     <label>Dataset:
       <select id="dataset">
         <option value="stations" selected>Railway stations</option>
         <option value="museums">Museums</option>
       </select>
     </label>
-
     <label>Metric:
       <select id="metric">
         <option value="l1" selected>Manhattan (L1)</option>
         <option value="l2">Euclidean (L2)</option>
       </select>
     </label>
-
     <label id="angleWrap">L1 angle:
       <input id="angle" type="range" min="-45" max="45" step="1" value="29" />
       <span id="angleVal">29°</span>
     </label>
-
     <label>Resolution (px):
       <select id="res">
         <option value="2" selected>Fast (2)</option>
@@ -86,16 +97,21 @@
         <option value="4">Fastest (4)</option>
       </select>
     </label>
-
     <button id="redraw">Redraw</button>
   </header>
 
   <div id="container">
     <canvas id="c"></canvas>
+
+    <!-- BIG stacked title overlay; change text if you really want “Voroni” -->
+    <div id="bigTitle">
+      <span>Manhattan</span>
+      <span>Voronoi</span>
+    </div>
   </div>
 
   <div id="status">Loading…</div>
-
+  
 <script type="module">
 import { Delaunay } from "https://cdn.jsdelivr.net/npm/d3-delaunay@6/+esm";
 
