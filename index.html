@@ -63,7 +63,8 @@
   <div id="status">Loading…</div>
 
 <script type="module">
-const MAP_ROTATE_DEG = -29; // rotate whole map so Manhattan looks upright
+// Rotate the whole map (visual) without changing scale
+const MAP_ROTATE_DEG = -29;
 
 async function main() {
   const status = document.getElementById('status');
@@ -110,7 +111,7 @@ async function main() {
     return [λ, Math.log(Math.tan(Math.PI/4 + φ/2))];
   };
 
-  // Data (projected)
+  // Data (projected, unrotated)
   const ringLonLat = largestOuterRing(boundaryFC);
   const ptsLonLat  = stationsLonLatClean(stationsFC);
   const ringProj   = ringLonLat.map(([lon,lat])=>merc(lon,lat));
@@ -126,46 +127,27 @@ async function main() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // use CSS pixels for drawing
   }
 
-  // Rotation in projected space (so bbox uses rotated geometry)
-  function rotateXY([x,y], deg, [cx,cy]){
-    const t = deg*Math.PI/180, c=Math.cos(t), s=Math.sin(t);
-    const dx=x-cx, dy=y-cy;
-    return [ cx + c*dx - s*dy, cy + s*dx + c*dy ];
-  }
-
-  // Globals derived from size
+  // Globals derived from size (unrotated fit!)
   let toCanvas = (xy)=>xy;
-  let ringRot = [], ptsRot = [], stationXY = [];
-
+  let stationXY = [];
   function fitProjectionAndPrecompute(){
-    // Base bbox (unrotated) to get a sensible rotation center
-    const src = ptsProj.length ? ptsProj : ringProj;
+    // Fit using UNROTATED bbox (keeps size the same as before)
+    const src = ringProj;
     let minX=+Infinity,minY=+Infinity,maxX=-Infinity,maxY=-Infinity;
     for(const [x,y] of src){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
-    const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
-
-    // Rotate data first
-    ringRot = ringProj.map(p=>rotateXY(p, MAP_ROTATE_DEG, [cx,cy]));
-    ptsRot  = ptsProj.map(p=>rotateXY(p,  MAP_ROTATE_DEG, [cx,cy]));
-
-    // Bbox of rotated data (use stations if present)
-    const srcR = ptsRot.length ? ptsRot : ringRot;
-    minX=+Infinity;minY=+Infinity;maxX=-Infinity;maxY=-Infinity;
-    for(const [x,y] of srcR){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
     const pad=0.06; minX-=pad; maxX+=pad; minY-=pad; maxY+=pad;
 
-    // Build linear map from rotated space to canvas CSS pixels
     const W=canvas.clientWidth, H=canvas.clientHeight;
     const sx=W/(maxX-minX), sy=H/(maxY-minY), s=Math.min(sx,sy);
     const ox=(W - s*(maxX-minX))/2, oy=(H - s*(maxY-minY))/2;
 
     toCanvas = ([x,y]) => [ ox + s*(x - minX), oy + s*(maxY - y) ];
-    stationXY = ptsRot.map(([x,y]) => toCanvas([x,y]));
+    stationXY = ptsProj.map(([x,y]) => toCanvas([x,y]));
   }
 
   // ---- Distance helpers ----
   const palette = Array.from({length: 20}, (_,i)=>`hsl(${(i*360/20)|0} 70% 45%)`);
-  const rotL1 = (x,y,deg)=>{ const t=deg*Math.PI/180,c=Math.cos(t),s=Math.sin(t); return [c*x + s*y, -s*x + c*y]; };
+  const rotL1 = (x,y,deg)=>{ const t=deg*Math.PI/180,c=Math.cos(t),s=Math.sin(t); return [ c*x + s*y, -s*x + c*y ]; };
 
   function nearestIndexL1(x,y,deg=0){
     if (deg) [x,y] = rotL1(x,y,deg);
@@ -187,34 +169,31 @@ async function main() {
     return idx;
   }
 
-  // ---- Drawing ----
+  // ---- Drawing helpers (paths built in unrotated coords) ----
+  function pathBoundary(){
+    if (!ringProj.length) return;
+    const [x0,y0]=toCanvas(ringProj[0]); ctx.moveTo(x0,y0);
+    for (let i=1;i<ringProj.length;i++){ const [xi,yi]=toCanvas(ringProj[i]); ctx.lineTo(xi,yi); }
+    ctx.closePath();
+  }
   function setClip(){
     ctx.save();
     ctx.beginPath();
-    if (ringRot.length){
-      const [x0,y0]=toCanvas(ringRot[0]); ctx.moveTo(x0,y0);
-      for (let i=1;i<ringRot.length;i++){ const [xi,yi]=toCanvas(ringRot[i]); ctx.lineTo(xi,yi); }
-      ctx.closePath();
-    }
+    pathBoundary();
     ctx.clip('nonzero');
   }
-
   function drawOutline(){
     ctx.lineWidth=3; ctx.strokeStyle='#111'; ctx.beginPath();
-    if (ringRot.length){
-      const [x0,y0]=toCanvas(ringRot[0]); ctx.moveTo(x0,y0);
-      for (let i=1;i<ringRot.length;i++){ const [xi,yi]=toCanvas(ringRot[i]); ctx.lineTo(xi,yi); }
-      ctx.closePath();
-    }
+    pathBoundary();
     ctx.stroke();
   }
-
   // station dots half size
   function drawStations(){
     ctx.lineWidth=2; ctx.strokeStyle='#fff'; ctx.fillStyle='#111';
     for (const [x,y] of stationXY){ ctx.beginPath(); ctx.arc(x,y,1,0,Math.PI*2); ctx.fill(); ctx.stroke(); }
   }
 
+  // ---- Render (rotate the CANVAS, not the data) ----
   async function render(){
     const metric = metricEl.value;
     const res = parseInt(resEl.value,10);
@@ -223,14 +202,22 @@ async function main() {
     status.textContent = `Rendering (${metric.toUpperCase()} @ step=${res})…`;
 
     ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // Apply a visual rotation around the canvas center, AFTER sizing is set
+    const Wcss = canvas.clientWidth, Hcss = canvas.clientHeight;
+    ctx.save();
+    ctx.translate(Wcss/2, Hcss/2);
+    ctx.rotate(MAP_ROTATE_DEG * Math.PI/180);
+    ctx.translate(-Wcss/2, -Hcss/2);
+
+    // All drawing/clipping now happens in the rotated space
     setClip();
 
-    const W=canvas.clientWidth, H=canvas.clientHeight;
     let x=0; const band=8*res;
     function step(){
-      const xEnd=Math.min(W, x+band);
+      const xEnd=Math.min(Wcss, x+band);
       for (let xi=x; xi<xEnd; xi+=res){
-        for (let yi=0; yi<H; yi+=res){
+        for (let yi=0; yi<Hcss; yi+=res){
           const idx = (metric==='l1')
             ? nearestIndexL1(xi+0.5*res, yi+0.5*res, angle)
             : nearestIndexL2(xi+0.5*res, yi+0.5*res);
@@ -239,20 +226,31 @@ async function main() {
         }
       }
       x=xEnd;
-      if (x<W) requestAnimationFrame(step);
-      else { ctx.restore(); drawOutline(); drawStations(); status.textContent=`Done. ${stationXY.length} stations.`; }
+      if (x<Wcss) requestAnimationFrame(step);
+      else {
+        ctx.restore();           // remove clip+rotation
+        // Reapply rotation to stroke outline & dots on top
+        ctx.save();
+        ctx.translate(Wcss/2, Hcss/2);
+        ctx.rotate(MAP_ROTATE_DEG * Math.PI/180);
+        ctx.translate(-Wcss/2, -Hcss/2);
+        drawOutline();
+        drawStations();
+        ctx.restore();
+        status.textContent=`Done. ${stationXY.length} stations.`;
+      }
     }
     requestAnimationFrame(step);
   }
 
-  // ---- Wire up ----
+  // ---- UI & resize ----
   metricEl.addEventListener('change', ()=>{ angleWrap.style.display=(metricEl.value==='l1')?'inline-flex':'none'; });
   angleEl.addEventListener('input', ()=>{ angleVal.textContent = `${angleEl.value}°`; });
   redrawBtn.addEventListener('click', render);
 
   function handleResize(){
     resizeCanvasToDisplaySize();
-    fitProjectionAndPrecompute();
+    fitProjectionAndPrecompute();   // keep unrotated fit (size unchanged)
     render();
   }
   let t; window.addEventListener('resize', ()=>{ clearTimeout(t); t=setTimeout(handleResize,80); });
