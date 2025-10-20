@@ -329,40 +329,6 @@
     {
       "type": "Feature",
       "properties": {
-        "@id": "node/591997657",
-        "gtfs_stop_code": "631",
-        "level": "-2",
-        "name": "Grand Central–42nd Street",
-        "network": "NYC Subway",
-        "network:wikidata": "Q7733",
-        "opening_hours": "24/7",
-        "operator": "New York City Transit Authority",
-        "operator:wikidata": "Q1146109",
-        "owner": "City of New York",
-        "owner:wikidata": "Q60",
-        "payment:omny": "yes",
-        "public_transport": "station",
-        "railway": "station",
-        "railway:ref": "402",
-        "short_name": "Grand Central–42 St",
-        "station": "subway",
-        "subway": "yes",
-        "wheelchair": "yes",
-        "wikidata": "Q2982151",
-        "wikipedia": "en:Grand Central–42nd Street station"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9768249,
-          40.7517716
-        ]
-      },
-      "id": "node/591997657"
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "@id": "node/591998702",
         "level": "-2",
         "name": "5th Avenue–59th Street",
@@ -451,81 +417,6 @@
         ]
       },
       "id": "node/592003470"
-    },
-    {
-      "type": "Feature",
-      "properties": {
-        "@id": "node/597928296",
-        "addr:city": "New York",
-        "addr:postcode": "10006",
-        "addr:state": "NY",
-        "check_date": "2023-11-02",
-        "description": "The Rector Street station is a station on the IRT Broadway–Seventh Avenue Line of the New York City Subway. Located at the intersection of Rector Street and Greenwich Street in Lower Manhattan, it is served by the 1 train at all times.",
-        "level": "-1",
-        "name": "Rector Street",
-        "name:en": "Rector Street",
-        "name:ru": "Ректор-стрит",
-        "network": "NYC Subway",
-        "note": "no in-station transfer between platforms",
-        "opening_hours": "24/7",
-        "operator": "New York City Transit Authority",
-        "public_transport": "station",
-        "railway": "station",
-        "railway:ref": "329",
-        "short_name": "Rector St",
-        "start_date": "1918-07-01",
-        "station": "subway",
-        "subway": "yes",
-        "wheelchair": "no",
-        "wikidata": "Q2415223",
-        "wikipedia": "en:Rector Street station (IRT Broadway–Seventh Avenue Line)"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -74.01385,
-          40.7073629
-        ]
-      },
-      "id": "node/597928296"
-    },
-    {
-      "type": "Feature",
-      "properties": {
-        "@id": "node/597928297",
-        "addr:city": "New York",
-        "addr:housenumber": "180",
-        "addr:postcode": "10007",
-        "addr:state": "NY",
-        "addr:street": "Greenwich Street",
-        "air_conditioning": "yes",
-        "check_date": "2023-11-02",
-        "description": "The WTC Cortlandt station (signed as World Trade Center on walls and historically known as Cortlandt Street and Cortlandt Street–World Trade Center) is a station on the IRT Broadway–Seventh Avenue Line of the New York City Subway in Lower Manhattan.",
-        "level": "-1",
-        "name": "WTC Cortlandt",
-        "name:en": "WTC Cortlandt",
-        "name:ru": "Дабл-ю-ти-си Кортландт",
-        "network": "NYC Subway",
-        "opening_hours": "24/7",
-        "operator": "New York City Transit Authority",
-        "public_transport": "station",
-        "railway": "station",
-        "railway:ref": "328",
-        "start_date": "1918-07-01",
-        "station": "subway",
-        "subway": "yes",
-        "wheelchair": "yes",
-        "wikidata": "Q2193425",
-        "wikipedia": "en:WTC Cortlandt station"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -74.0121448,
-          40.7114324
-        ]
-      },
-      "id": "node/597928297"
     },
     {
       "type": "Feature",
@@ -783,35 +674,6 @@
     {
       "type": "Feature",
       "properties": {
-        "@id": "node/597928312",
-        "gtfs_stop_code": "M18",
-        "level": "-1",
-        "name": "Essex Street",
-        "network": "NYC Subway",
-        "opening_hours": "24/7",
-        "operator": "New York City Transit Authority",
-        "public_transport": "station",
-        "railway": "station",
-        "railway:ref": "102",
-        "short_name": "Essex St",
-        "station": "subway",
-        "subway": "yes",
-        "wheelchair": "no",
-        "wikidata": "Q2612358",
-        "wikipedia": "en:Delancey Street/Essex Street station"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9874236,
-          40.7183982
-        ]
-      },
-      "id": "node/597928312"
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "@id": "node/597928315",
         "gtfs_stop_code": "B08",
         "level": "-5;-4",
@@ -876,38 +738,6 @@
         ]
       },
       "id": "node/597928316"
-    },
-    {
-      "type": "Feature",
-      "properties": {
-        "@id": "node/597928318",
-        "level": "-2",
-        "name": "Lexington Avenue–59th Street",
-        "network": "NYC Subway",
-        "network:wikidata": "Q7733",
-        "opening_hours": "24/7",
-        "operator": "New York City Transit Authority",
-        "operator:wikidata": "Q1146109",
-        "owner": "City of New York",
-        "owner:wikidata": "Q60",
-        "public_transport": "station",
-        "railway": "station",
-        "railway:ref": "7",
-        "short_name": "Lexington Av–59 St",
-        "station": "subway",
-        "subway": "yes",
-        "wheelchair": "no",
-        "wikidata": "Q870982",
-        "wikipedia": "en:Lexington Avenue/59th Street station"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9674728,
-          40.7627515
-        ]
-      },
-      "id": "node/597928318"
     },
     {
       "type": "Feature",
@@ -1922,27 +1752,6 @@
     {
       "type": "Feature",
       "properties": {
-        "@id": "way/1320463968",
-        "building": "no",
-        "internet_access": "no",
-        "public_transport": "station",
-        "railway": "station",
-        "station": "subway",
-        "subway": "yes",
-        "@geometry": "center"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9558129,
-          40.7794681
-        ]
-      },
-      "id": "way/1320463968"
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "@id": "node/1345137280",
         "level": "-1",
         "name": "Dyckman Street",
@@ -2656,39 +2465,6 @@
     {
       "type": "Feature",
       "properties": {
-        "@id": "node/2052618477",
-        "gtfs_stop_code": "R16",
-        "level": "-2",
-        "name": "Times Square–42nd Street",
-        "network": "NYC Subway",
-        "network:wikidata": "Q7733",
-        "opening_hours": "24/7",
-        "operator": "New York City Transit Authority",
-        "operator:wikidata": "Q1146109",
-        "owner": "City of New York",
-        "owner:wikidata": "Q60",
-        "public_transport": "station",
-        "railway": "station",
-        "railway:ref": "11",
-        "short_name": "Times Sq–42 St",
-        "station": "subway",
-        "subway": "yes",
-        "wheelchair": "yes",
-        "wikidata": "Q11265",
-        "wikipedia": "en:Times Square–42nd Street station"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9867299,
-          40.7547445
-        ]
-      },
-      "id": "node/2052618477"
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "@id": "node/2054217376",
         "addr:city": "New York",
         "addr:postcode": "10007",
@@ -2821,36 +2597,6 @@
         ]
       },
       "id": "node/4248884824"
-    },
-    {
-      "type": "Feature",
-      "properties": {
-        "@id": "node/4248887009",
-        "internet_access": "wlan",
-        "level": "-2",
-        "name": "168th Street",
-        "network": "NYC Subway",
-        "operator": "New York City Transit Authority",
-        "public_transport": "station",
-        "railway": "station",
-        "railway:ref": "148",
-        "short_name": "168 St",
-        "start_date": "1932-09-10",
-        "station": "subway",
-        "subway": "yes",
-        "wheelchair": "yes",
-        "wikidata": "Q1981131",
-        "wikimedia_commons": "Category:168th Street (New York City Subway)",
-        "wikipedia": "en:168th Street station (New York City Subway)"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9394687,
-          40.8409712
-        ]
-      },
-      "id": "node/4248887009"
     },
     {
       "type": "Feature",
@@ -3300,41 +3046,6 @@
     {
       "type": "Feature",
       "properties": {
-        "@id": "node/5106082761",
-        "level": "-2",
-        "name": "Times Square–42nd Street",
-        "name:en": "Times Square–42nd Street",
-        "name:ru": "42-я стрит - Таймс-сквер",
-        "network": "NYC Subway",
-        "network:wikidata": "Q7733",
-        "opening_hours": "24/7",
-        "operator": "New York City Transit Authority",
-        "operator:wikidata": "Q1146109",
-        "owner": "City of New York",
-        "owner:wikidata": "Q60",
-        "public_transport": "station",
-        "railway": "station",
-        "railway:ref": "317",
-        "short_name": "Times Sq–42 St",
-        "station": "subway",
-        "subway": "yes",
-        "toilets:wheelchair": "no",
-        "wheelchair": "yes",
-        "wikidata": "Q11265",
-        "wikipedia": "en:Times Square–42nd Street station"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9875424,
-          40.7552477
-        ]
-      },
-      "id": "node/5106082761"
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "@id": "node/5106257816",
         "level": "-1",
         "name": "Christopher Street–Stonewall Station",
@@ -3542,34 +3253,6 @@
         ]
       },
       "id": "node/5365337595"
-    },
-    {
-      "type": "Feature",
-      "properties": {
-        "@id": "node/5365369116",
-        "level": "-2;-1",
-        "name": "Fulton Street",
-        "network": "NYC Subway",
-        "opening_hours": "24/7",
-        "operator": "New York City Transit Authority",
-        "public_transport": "station",
-        "railway": "station",
-        "railway:ref": "106",
-        "short_name": "Fulton St",
-        "station": "subway",
-        "subway": "yes",
-        "wheelchair": "no",
-        "wikidata": "Q2982552",
-        "wikipedia": "en:Fulton Street station (New York City Subway)"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -74.0076322,
-          40.7103294
-        ]
-      },
-      "id": "node/5365369116"
     },
     {
       "type": "Feature",
@@ -4165,47 +3848,6 @@
     {
       "type": "Feature",
       "properties": {
-        "@id": "node/6448763951",
-        "addr:city": "New York",
-        "addr:state": "NY",
-        "gtfs_stop_code": "A24",
-        "level": "-3",
-        "name": "59th Street–Columbus Circle",
-        "name:en": "59th Street–Columbus Circle",
-        "name:es": "Calle 59–Columbus Circle",
-        "name:ru": "59-я стрит — Колумбус-сёркл",
-        "network": "NYC Subway",
-        "network:wikidata": "Q7733",
-        "opening_hours": "24/7",
-        "operator": "New York City Transit Authority",
-        "operator:wikidata": "Q1146109",
-        "owner": "City of New York",
-        "owner:wikidata": "Q60",
-        "payment:omny": "yes",
-        "platforms": "3",
-        "public_transport": "station",
-        "railway": "station",
-        "railway:ref": "161",
-        "short_name": "59 St–Columbus Circle",
-        "start_date": "1932",
-        "station": "subway",
-        "subway": "yes",
-        "wheelchair": "yes",
-        "wikidata": "Q2982354",
-        "wikipedia": "en:59th Street–Columbus Circle station"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9816906,
-          40.7683319
-        ]
-      },
-      "id": "node/6448763951"
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "@id": "node/6562022202",
         "gtfs_stop_code": "R23",
         "level": "-2",
@@ -4296,34 +3938,6 @@
         ]
       },
       "id": "node/6573362692"
-    },
-    {
-      "type": "Feature",
-      "properties": {
-        "@id": "node/6573371099",
-        "level": "-2",
-        "name": "14th Street–Union Square",
-        "network": "NYC Subway",
-        "opening_hours": "24/7",
-        "operator": "New York City Transit Authority",
-        "public_transport": "station",
-        "railway": "station",
-        "railway:ref": "406",
-        "short_name": "14 St–Union Sq",
-        "station": "subway",
-        "subway": "yes",
-        "wheelchair": "no",
-        "wikidata": "Q2631031",
-        "wikipedia": "en:14th Street–Union Square station"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9899805,
-          40.7347942
-        ]
-      },
-      "id": "node/6573371099"
     },
     {
       "type": "Feature",
@@ -4508,35 +4122,6 @@
     {
       "type": "Feature",
       "properties": {
-        "@id": "node/7099182377",
-        "addr:city": "New York",
-        "addr:housenumber": "89",
-        "addr:state": "NY",
-        "addr:street": "East 42nd Street",
-        "name": "Grand Central Terminal",
-        "network": "Metro-North Railroad",
-        "network:wikidata": "Q125908",
-        "opening_hours": "Mo-Su 05:30-02:00",
-        "operator": "Metro-North Railroad",
-        "operator:wikidata": "Q125908",
-        "public_transport": "station",
-        "railway": "station",
-        "train": "yes",
-        "wikidata": "Q11290",
-        "wikipedia": "en:Grand Central Terminal"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9771792,
-          40.7528064
-        ]
-      },
-      "id": "node/7099182377"
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "@id": "node/7142969916",
         "level": "-4;-1",
         "name": "59th Street",
@@ -4715,35 +4300,6 @@
         ]
       },
       "id": "node/7509382446"
-    },
-    {
-      "type": "Feature",
-      "properties": {
-        "@id": "node/7523716838",
-        "gtfs_stop_code": "L03",
-        "level": "-3",
-        "name": "Union Square",
-        "network": "NYC Subway",
-        "opening_hours": "24/7",
-        "operator": "New York City Transit Authority",
-        "public_transport": "station",
-        "railway": "station",
-        "railway:ref": "117",
-        "short_name": "Union Sq",
-        "station": "subway",
-        "subway": "yes",
-        "wheelchair": "yes",
-        "wikidata": "Q2631031",
-        "wikipedia": "en:14th Street–Union Square station"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9903599,
-          40.734603
-        ]
-      },
-      "id": "node/7523716838"
     },
     {
       "type": "Feature",
