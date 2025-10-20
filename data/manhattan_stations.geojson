@@ -4565,31 +4565,6 @@
     {
       "type": "Feature",
       "properties": {
-        "@id": "node/7100222053",
-        "addr:state": "NY",
-        "name": "Marble Hill",
-        "network": "Metro-North Railroad",
-        "network:wikidata": "Q125908",
-        "operator": "Metro-North Railroad",
-        "operator:wikidata": "Q125908",
-        "public_transport": "station",
-        "railway": "station",
-        "train": "yes",
-        "wikidata": "Q6755190",
-        "wikipedia": "en:Marble Hill station"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9127022,
-          40.8749243
-        ]
-      },
-      "id": "node/7100222053"
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "@id": "node/7142969916",
         "level": "-4;-1",
         "name": "59th Street",
