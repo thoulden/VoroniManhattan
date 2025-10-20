@@ -2825,34 +2825,6 @@
     {
       "type": "Feature",
       "properties": {
-        "@id": "node/4248884831",
-        "level": "2",
-        "name": "Marble Hill–225th Street",
-        "network": "NYC Subway",
-        "note": "no in-station transfer between platforms",
-        "operator": "New York City Transit Authority",
-        "public_transport": "station",
-        "railway": "station",
-        "railway:ref": "296",
-        "short_name": "Marble Hill–225 St",
-        "station": "subway",
-        "subway": "yes",
-        "wheelchair": "no",
-        "wikidata": "Q2880976",
-        "wikipedia": "en:Marble Hill–225th Street station"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9101947,
-          40.8742974
-        ]
-      },
-      "id": "node/4248884831"
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "@id": "node/4248887009",
         "internet_access": "wlan",
         "level": "-2",
