@@ -22,7 +22,6 @@
     display: grid; grid-template-rows: auto 1fr auto;
   }
 
-  /* Header with controls (title removed from here) */
   header {
     padding: 10px 16px;
     display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
@@ -36,25 +35,21 @@
   }
   button:hover { border-color: var(--accent); }
 
-  /* Map area */
   #container { position: relative; height: 100%; }
   canvas { display:block; width: 100%; height: 100%; background: var(--bg); }
 
-
-  /* Big stacked title overlay (top-left of the map area) */
+  /* Big stacked title overlay (top-left of map area) */
   #bigTitle {
     position: absolute;
     top: clamp(12px, 2.5vw, 28px);
     left: clamp(12px, 2.5vw, 28px);
     display: flex; flex-direction: column; align-items: flex-start; gap: 0.04em;
-    pointer-events: none; /* so it never blocks clicks/drag */
+    pointer-events: none;
     line-height: 0.9;
-    /* Responsive size: min 42px, scales with viewport, caps at 160px */
-    font-size: clamp(21px, 4.5vw, 80px);
-    font-weight: 800;  /* bold, like signage */
+    font-size: clamp(21px, 4.5vw, 80px); /* tweak for “half-size” if desired */
+    font-weight: 800;
     letter-spacing: 0.2px;
     color: #111;
-    /* subtle outline so text stays legible on any colors */
     text-shadow:
       -1px -1px 0 #fff,
        1px -1px 0 #fff,
@@ -64,7 +59,6 @@
   }
   #bigTitle span { display:block; }
 
-  /* Footer status */
   #status {
     text-align:center; padding: 8px 12px; font-size: 13px; color:#666;
     border-top: 1px solid #e5e5e5;
@@ -73,7 +67,6 @@
 </head>
 <body>
   <header>
-    <!-- Title removed from header per your request -->
     <label>Dataset:
       <select id="dataset">
         <option value="stations" selected>Railway stations</option>
@@ -103,16 +96,11 @@
 
   <div id="container">
     <canvas id="c"></canvas>
-
-    <!-- BIG stacked title overlay; change text if you really want “Voroni” -->
-    <div id="bigTitle">
-      <span>Manhattan</span>
-      <span>Voronoi</span>
-    </div>
+    <div id="bigTitle"><span>Manhattan</span><span>Voronoi</span></div>
   </div>
 
   <div id="status">Loading…</div>
-  
+
 <script type="module">
 import { Delaunay } from "https://cdn.jsdelivr.net/npm/d3-delaunay@6/+esm";
 
@@ -122,7 +110,7 @@ async function main() {
   const ctx      = canvas.getContext('2d', { willReadFrequently: false });
 
   // UI
-  const datasetEl = document.getElementById('dataset'); // must exist in your header
+  const datasetEl = document.getElementById('dataset');
   const metricEl  = document.getElementById('metric');
   const angleWrap = document.getElementById('angleWrap');
   const angleEl   = document.getElementById('angle');
@@ -130,16 +118,15 @@ async function main() {
   const resEl     = document.getElementById('res');
   const redrawBtn = document.getElementById('redraw');
 
-  // -------- Load data --------
+  // Load data
   const [boundaryFC, stationsFC, museumsFC] = await Promise.all([
     fetch('./data/manhattan_boundary.geojson').then(r => r.json()),
     fetch('./data/manhattan_stations.geojson').then(r => r.json()),
     fetch('./data/manhattan_museums.geojson').then(r => r.json()),
   ]);
 
-  // -------- Geo helpers --------
-  const R = 6378137; // Web Mercator sphere
-  const DEG = Math.PI / 180;
+  // --- Geo helpers ---
+  const R = 6378137, DEG = Math.PI / 180;
 
   const projectLonLatToMeters = (lon, lat) => {
     const x = R * lon * DEG;
@@ -186,31 +173,28 @@ async function main() {
       if (g.type === 'Point') {
         let [a,b] = g.coordinates;
         let lon=a, lat=b;
-        // swap if likely lat,lon
         if (!(lon>-180&&lon<180&&lat>-90&&lat<90) && (b>-180&&b<180&&a>-90&&a<90)) {
           lon=b; lat=a;
         }
-        // NYC-ish bbox filter
         if (lon>-75 && lon<-72 && lat>40 && lat<41) pts.push([lon,lat]);
       }
     }
     return pts;
   }
 
-  // -------- Boundary & datasets in meters --------
-  const boundaryRingRaw = largestOuterRing(boundaryFC);
-  const boundaryIsLonLat = ringLooksLikeLonLat(boundaryRingRaw);
+  // Boundary & datasets in meters
+  const boundaryRingRaw   = largestOuterRing(boundaryFC);
+  const boundaryIsLonLat  = ringLooksLikeLonLat(boundaryRingRaw);
   const boundaryRingMeters = boundaryIsLonLat
     ? boundaryRingRaw.map(([lon,lat]) => projectLonLatToMeters(lon,lat))
     : boundaryRingRaw;
 
-  const stationsLonLat = pointsLonLatClean(stationsFC);
-  const museumsLonLat  = pointsLonLatClean(museumsFC);
+  const stationsMeters = pointsLonLatClean(stationsFC)
+    .map(([lon,lat]) => projectLonLatToMeters(lon,lat));
+  const museumsMeters  = pointsLonLatClean(museumsFC)
+    .map(([lon,lat]) => projectLonLatToMeters(lon,lat));
 
-  const stationsMeters = stationsLonLat.map(([lon,lat]) => projectLonLatToMeters(lon,lat));
-  const museumsMeters  = museumsLonLat.map(([lon,lat])  => projectLonLatToMeters(lon,lat));
-
-  // -------- Canvas sizing / transforms --------
+  // --- Canvas sizing ---
   function resizeCanvasToDisplaySize(cv) {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const rect = cv.getBoundingClientRect();
@@ -220,26 +204,65 @@ async function main() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS px
   }
 
+  // Rotation in data space (y up). Hard-coded to make Manhattan vertical.
+  function rotateCCW(x, y, deg) {
+    const t = deg * Math.PI / 180;
+    const c = Math.cos(t), s = Math.sin(t);
+    return [ c*x - s*y, s*x + c*y ];
+  }
+  const MAP_ROTATE_DEG = -29;
+
   let toCanvas = (xy)=>xy;
   let projectedRing = boundaryRingMeters;
-
-  // Active dataset (starts with stations)
+  let displayRing = [];     // rotated boundary for drawing/clipping
   let currentPointsMeters = stationsMeters;
   let stationXY = [];
 
-  // Neighbor-aware colors
+  // MTA palette + balanced greedy coloring (via Delaunay neighbors)
   const MTA_COLORS = [
-    '#0062CF', // A/C/E blue
-    '#EB6800', // B/D/F/M orange
-    '#799534', // G light green
-    '#8E5C33', // J/Z brown
-    '#F6BC26', // N/Q/R/W yellow
-    '#D82233', // 1/2/3 red
-    '#009952', // 4/5/6 dark green
-    '#9A38A1', // 7 purple
-    '#008EB7', // T teal (proposed)
+    '#0062CF', '#EB6800', '#799534', '#8E5C33',
+    '#F6BC26', '#D82233', '#009952', '#9A38A1', '#008EB7'
   ];
-  let siteColor = []; // color per site index
+  let siteColor = [];
+
+  function computeSiteColors() {
+    const n = stationXY.length;
+    siteColor = Array(n).fill(null);
+    if (n === 0) return;
+
+    const m = MTA_COLORS.length;
+    const colorCounts = Array(m).fill(0);
+    let cursor = 0;
+
+    const delaunay = Delaunay.from(stationXY);
+    const neighbors = Array.from({length:n}, () => new Set());
+    for (let i=0; i<n; i++) for (const j of delaunay.neighbors(i)) {
+      neighbors[i].add(j); neighbors[j].add(i);
+    }
+
+    const order = Array.from({length:n}, (_,i)=>i)
+      .sort((a,b) => neighbors[b].size - neighbors[a].size);
+
+    for (const v of order) {
+      const forbidden = new Set();
+      for (const u of neighbors[v]) {
+        const c = siteColor[u];
+        if (c != null) forbidden.add(c);
+      }
+      const allowed = [];
+      for (let k=0;k<m;k++) if (!forbidden.has(k)) allowed.push(k);
+
+      let bestIdx = allowed[0], bestCount = Infinity;
+      for (let t=0;t<allowed.length;t++) {
+        const k = allowed[(t + cursor) % allowed.length];
+        const cnt = colorCounts[k];
+        if (cnt < bestCount) { bestCount = cnt; bestIdx = k; }
+      }
+      siteColor[v] = bestIdx;
+      colorCounts[bestIdx] += 1;
+      cursor = (cursor + 1) % m;
+    }
+  }
 
   function setDataset(kind) {
     currentPointsMeters = (kind === 'museums') ? museumsMeters : stationsMeters;
@@ -247,8 +270,12 @@ async function main() {
   }
 
   function fitProjectionAndPrecompute() {
-    // Use boundary for viewport (fallback: current points if boundary empty)
-    const src = projectedRing.length ? projectedRing : currentPointsMeters;
+    // Rotate boundary & points in meter space so Manhattan is upright
+    const ringRot = projectedRing.map(([x,y]) => rotateCCW(x, y, MAP_ROTATE_DEG));
+    const ptsRot  = currentPointsMeters.map(([x,y]) => rotateCCW(x, y, MAP_ROTATE_DEG));
+
+    // Bbox from rotated boundary (fallback to points)
+    const src = ringRot.length ? ringRot : ptsRot;
     let minX=+Infinity, minY=+Infinity, maxX=-Infinity, maxY=-Infinity;
     for (const [x,y] of src) {
       if (x<minX) minX=x; if (x>maxX) maxX=x;
@@ -264,24 +291,25 @@ async function main() {
     const ox = (cssW - s*(maxX-minX))/2;
     const oy = (cssH - s*(maxY-minY))/2;
 
-    toCanvas = ([x,y]) => [ ox + s*(x - minX), oy + s*(maxY - y) ];
-    stationXY = currentPointsMeters.map(([x,y]) => toCanvas([x,y]));
+    toCanvas   = ([x,y]) => [ ox + s*(x - minX), oy + s*(maxY - y) ];
+    stationXY  = ptsRot.map(([x,y]) => toCanvas([x,y]));
+    displayRing = ringRot;
 
-    computeSiteColors(); // recompute colors whenever points/size change
+    computeSiteColors();
   }
 
-  // -------- Distance + drawing helpers --------
-  const rotate = (x,y,deg) => {
+  // Screen-space rotation used only for L1 distance orientation slider
+  const rotateScreen = (x,y,deg) => {
     const t = deg * Math.PI/180, c = Math.cos(t), s = Math.sin(t);
     return [ c*x + s*y, -s*x + c*y ];
   };
 
   function nearestIndexL1(x,y,deg=0) {
-    if (deg) [x,y] = rotate(x,y,deg);
+    if (deg) [x,y] = rotateScreen(x,y,deg);
     let bestIdx = 0, best = Infinity;
     for (let i=0;i<stationXY.length;i++) {
       let [sx,sy] = stationXY[i];
-      if (deg) [sx,sy] = rotate(sx,sy,deg);
+      if (deg) [sx,sy] = rotateScreen(sx,sy,deg);
       const d = Math.abs(x - sx) + Math.abs(y - sy);
       if (d < best) { best = d; bestIdx = i; }
     }
@@ -299,62 +327,14 @@ async function main() {
     return bestIdx;
   }
 
-  // Build neighbor-aware colors via Delaunay → greedy coloring
-  // Build neighbor-aware colors via Delaunay → balanced greedy coloring
-function computeSiteColors() {
-  const n = stationXY.length;
-  siteColor = Array(n).fill(null);
-  if (n === 0) return;
-
-  const m = MTA_COLORS.length;
-  const colorCounts = Array(m).fill(0); // usage count per palette color
-  let cursor = 0;                       // rotates to avoid early-color bias
-
-  const delaunay = Delaunay.from(stationXY);
-  const neighbors = Array.from({length:n}, () => new Set());
-  for (let i=0; i<n; i++) for (const j of delaunay.neighbors(i)) {
-    neighbors[i].add(j); neighbors[j].add(i);
-  }
-
-  // Welsh–Powell ordering (high degree first)
-  const order = Array.from({length:n}, (_,i)=>i)
-    .sort((a,b) => neighbors[b].size - neighbors[a].size);
-
-  for (const v of order) {
-    const forbidden = new Set();
-    for (const u of neighbors[v]) {
-      const c = siteColor[u];
-      if (c != null) forbidden.add(c);
-    }
-
-    // Build list of allowed color indices
-    const allowed = [];
-    for (let k = 0; k < m; k++) if (!forbidden.has(k)) allowed.push(k);
-
-    // Pick allowed color with the lowest usage; break ties by rotating start
-    let bestIdx = allowed[0], bestCount = Infinity;
-    // start from cursor to spread choices across the palette
-    for (let t = 0; t < allowed.length; t++) {
-      const k = allowed[(t + cursor) % allowed.length];
-      const cnt = colorCounts[k];
-      if (cnt < bestCount) { bestCount = cnt; bestIdx = k; }
-    }
-
-    siteColor[v] = bestIdx;
-    colorCounts[bestIdx] += 1;
-    cursor = (cursor + 1) % m; // move the tie-breaker forward for next site
-  }
-}
-
-
   function setClip() {
     ctx.save();
     ctx.beginPath();
-    if (projectedRing.length) {
-      const [x0,y0] = toCanvas(projectedRing[0]);
+    if (displayRing.length) {
+      const [x0,y0] = toCanvas(displayRing[0]);
       ctx.moveTo(x0,y0);
-      for (let i=1;i<projectedRing.length;i++) {
-        const [xi,yi] = toCanvas(projectedRing[i]);
+      for (let i=1;i<displayRing.length;i++) {
+        const [xi,yi] = toCanvas(displayRing[i]);
         ctx.lineTo(xi,yi);
       }
       ctx.closePath();
@@ -366,11 +346,11 @@ function computeSiteColors() {
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#111';
     ctx.beginPath();
-    if (projectedRing.length) {
-      const [x0,y0] = toCanvas(projectedRing[0]);
+    if (displayRing.length) {
+      const [x0,y0] = toCanvas(displayRing[0]);
       ctx.moveTo(x0,y0);
-      for (let i=1;i<projectedRing.length;i++) {
-        const [xi,yi] = toCanvas(projectedRing[i]);
+      for (let i=1;i<displayRing.length;i++) {
+        const [xi,yi] = toCanvas(displayRing[i]);
         ctx.lineTo(xi,yi);
       }
       ctx.closePath();
@@ -379,13 +359,11 @@ function computeSiteColors() {
   }
 
   function drawStations() {
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.0;
     ctx.strokeStyle = '#fff';
-    // ctx.fillStyle = '#111'; if you want a black pixel in the middle
     for (const [x,y] of stationXY) {
       ctx.beginPath();
-      ctx.arc(x, y, 0.8, 0, Math.PI*2); // compact markers
-      ctx.fill();
+      ctx.arc(x, y, 1.2, 0, Math.PI*2); // small, pure-white dots (stroke only)
       ctx.stroke();
     }
   }
@@ -417,7 +395,6 @@ function computeSiteColors() {
           const colorIdx = siteColor[idx] ?? (idx % MTA_COLORS.length);
           ctx.fillStyle = MTA_COLORS[colorIdx];
           ctx.fillRect(xi, yi, res, res);
-
         }
       }
       x = xEnd;
@@ -433,19 +410,14 @@ function computeSiteColors() {
     requestAnimationFrame(step);
   }
 
-  // -------- UI & resize wiring --------
+  // UI & resize wiring
   metricEl.addEventListener('change', () => {
     angleWrap.style.display = (metricEl.value === 'l1') ? 'inline-flex' : 'none';
   });
-  angleEl.addEventListener('input', () => {
-    angleVal.textContent = `${angleEl.value}°`;
-  });
+  angleEl.addEventListener('input', () => { angleVal.textContent = `${angleEl.value}°`; });
   redrawBtn.addEventListener('click', render);
 
-  datasetEl.addEventListener('change', () => {
-    setDataset(datasetEl.value);
-    render();
-  });
+  datasetEl.addEventListener('change', () => { setDataset(datasetEl.value); render(); });
 
   function resizeAndRedraw() {
     resizeCanvasToDisplaySize(canvas);
@@ -458,9 +430,9 @@ function computeSiteColors() {
     t = setTimeout(resizeAndRedraw, 80);
   });
 
-  // -------- Initial draw --------
+  // Initial draw
   metricEl.dispatchEvent(new Event('change'));
-  setDataset(datasetEl.value || 'stations');   // initialize
+  setDataset(datasetEl.value || 'stations');
   resizeAndRedraw();
 }
 
