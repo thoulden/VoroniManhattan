@@ -3145,33 +3145,6 @@
     {
       "type": "Feature",
       "properties": {
-        "@id": "node/5350221083",
-        "level": "-1",
-        "name": "9th Street",
-        "network": "PATH",
-        "operator": "Port Authority of New York and New Jersey",
-        "operator:wikidata": "Q908666",
-        "public_transport": "station",
-        "railway": "station",
-        "short_name": "9 St",
-        "station": "subway",
-        "subway": "yes",
-        "wheelchair": "no",
-        "wikidata": "Q4646684",
-        "wikipedia": "en:Ninth Street station (PATH)"
-      },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -73.9996395,
-          40.7340749
-        ]
-      },
-      "id": "node/5350221083"
-    },
-    {
-      "type": "Feature",
-      "properties": {
         "@id": "node/5350574432",
         "level": "-2",
         "name": "14th Street",
