@@ -1,65 +1,103 @@
 // scripts/render_poster.js
-// Renders your GitHub Pages site to an A3 PDF using Puppeteer.
+// Render your GitHub Pages app to an A3 PDF using Puppeteer.
+// Usage examples:
+//   URL=https://<user>.github.io/<repo>/ node scripts/render_poster.js
+//   URL=http://localhost:8080/ OUTPUT=poster_a3.pdf node scripts/render_poster.js
 
-const fs = require('fs');
-const path = require('path');
-const puppeteer = require('puppeteer');
+const path = require("path");
+const puppeteer = require("puppeteer");
 
 (async () => {
-  const url = process.env.URL || 'http://localhost:8080/';
-  const outfile = process.env.OUTPUT || 'poster_a3.pdf';
+  // ---- Inputs (env overrides) ----
+  const BASE_URL    = process.env.URL || "http://localhost:8080/";
+  const OUTFILE     = process.env.OUTPUT || "poster_a3.pdf";
+  const TITLE_ALIGN = (process.env.TITLE_ALIGN || "right").toLowerCase(); // 'right' | 'left'
+  const TITLE_SCALE = parseFloat(process.env.TITLE_SCALE || "1.5");        // e.g. 1.5
+  const RES         = parseInt(process.env.RES || "1", 10);                // pixel step (1 = small pixels)
+  const ANGLE       = parseFloat(process.env.ANGLE || "29");               // L1 slider default (deg)
 
-  // Launch Chromium
+  // Build URL with poster query params, preserving any existing ones
+  const u = new URL(BASE_URL);
+  u.searchParams.set("poster", "1");
+  u.searchParams.set("titleAlign", TITLE_ALIGN);
+  u.searchParams.set("titleScale", String(TITLE_SCALE));
+  u.searchParams.set("res", String(RES));
+  // If your page reads the slider value, this sets its default:
+  u.searchParams.set("angle", String(ANGLE));
+
+  // ---- Launch headless Chromium ----
   const browser = await puppeteer.launch({
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    headless: "new",
+    defaultViewport: null,
   });
+
   const page = await browser.newPage();
 
-  // Optional: make sure the canvas gets a big raster backing store
-  await page.setViewport({ width: 1600, height: 2400, deviceScaleFactor: 2 });
+  // Big backing store; deviceScaleFactor=3 gives very crisp output
+  await page.setViewport({ width: 1600, height: 2400, deviceScaleFactor: 3 });
 
-  // Go to your page and wait for network to be quiet
-  await page.goto(url, { waitUntil: 'networkidle0', timeout: 0 });
+  // Go to your page and wait for quiet network
+  await page.goto(u.toString(), { waitUntil: "networkidle0", timeout: 0 });
 
-  // Wait until the page says it’s done rendering
+  // Let the app know we want poster defaults from query params (defensive)
+  await page.evaluate(() => {
+    // If your app reads ?angle=?, sync the slider/UI once.
+    const params = new URLSearchParams(location.search);
+    const angle = Number(params.get("angle"));
+    const angleEl = document.getElementById("angle");
+    if (angleEl && !Number.isNaN(angle)) {
+      angleEl.value = String(angle);
+      angleEl.dispatchEvent(new Event("input"));
+    }
+  });
+
+  // Wait until your status bar contains "Done."
   try {
     await page.waitForFunction(
       () => {
-        const el = document.querySelector('#status');
-        return el && /Done\./i.test(el.textContent || el.innerText);
+        const el = document.querySelector("#status");
+        const txt = el?.textContent || el?.innerText || "";
+        return /Done\./i.test(txt);
       },
-      { timeout: 180000 } // up to 3 minutes for heavy renders
+      { timeout: 3 * 60 * 1000 } // up to 3 minutes
     );
   } catch (e) {
     console.warn('Timed out waiting for "Done." in #status — continuing anyway.');
   }
 
-  // Ensure controls/headers don’t eat margins in PDF (optional)
-  await page.addStyleTag({ content: `
-    @page { size: A3; margin: 0; }
-    body { margin: 0 !important; }
-    header, #status { display: none !important; }
-    #container { position: relative !important; height: 100vh !important; }
-    canvas { width: 100vw !important; height: 100vh !important; }
-    #bigTitle { 
-      font-size: clamp(28px, 5vw, 120px) !important;
-      text-shadow:
-        -1px -1px 0 #fff, 1px -1px 0 #fff,
-        -1px  1px 0 #fff, 1px  1px 0 #fff,
-        0 0 6px #fff !important;
-    }
-  `});
+  // Add print styles for full-bleed poster (hide UI, fill page)
+  await page.addStyleTag({
+    content: `
+      @page { size: A3; margin: 0; }
+      html, body { margin: 0 !important; height: 100% !important; }
+      header, #status { display: none !important; }
+      #container { position: relative !important; height: 100vh !important; }
+      canvas { width: 100vw !important; height: 100vh !important; }
+      /* Make the big title larger in print for punch */
+      #bigTitle {
+        font-size: clamp(28px, 5vw, 120px) !important;
+        text-shadow:
+          -1px -1px 0 #fff, 1px -1px 0 #fff,
+          -1px  1px 0 #fff, 1px  1px 0 #fff,
+          0 0 6px #fff !important;
+      }
+    `,
+  });
 
-  // Save as A3 PDF at full bleed
+  // Emit A3 PDF (portrait), full bleed
   await page.pdf({
-    path: outfile,
+    path: OUTFILE,
     printBackground: true,
-    width: '297mm',
-    height: '420mm',
-    margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' }
+    width: "297mm",
+    height: "420mm",
+    margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
   });
 
   await browser.close();
+  console.log(`Wrote ${path.resolve(OUTFILE)} from ${u.toString()}`);
+})().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
 
-  console.log(`Wrote ${path.resolve(outfile)}`);
-})();
