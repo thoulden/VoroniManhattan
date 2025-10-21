@@ -117,7 +117,34 @@ async function main() {
   const angleVal  = document.getElementById('angleVal');
   const resEl     = document.getElementById('res');
   const redrawBtn = document.getElementById('redraw');
+  const params = new URLSearchParams(location.search);
+  const isPoster = params.has('poster');
 
+  if (isPoster) {
+    // 1) Title: right align + scale
+    const title = document.getElementById('bigTitle');
+    const titleAlign = (params.get('titleAlign') || 'right').toLowerCase();
+    const titleScale = parseFloat(params.get('titleScale') || '1.5');
+
+    if (titleAlign === 'right') {
+      // move to top-right and right-align the stacked words
+      title.style.left = 'auto';
+      title.style.right = 'clamp(12px, 2.5vw, 28px)';
+      title.style.alignItems = 'flex-end';
+      title.style.textAlign = 'right';
+    }
+
+    if (!Number.isNaN(titleScale) && titleScale !== 1) {
+      // scale the computed font-size (keeps your responsive clamp base)
+      const px = parseFloat(getComputedStyle(title).fontSize);
+      title.style.fontSize = `${px * titleScale}px`;
+    }
+
+      // 2) Smaller pixels: half the normal size => res=1
+      // (You can still override via ?res=2 etc. if you want.)
+      const resOverride = params.get('res') || '1';
+      resEl.value = resOverride;
+    }
   // Load data
   const [boundaryFC, stationsFC, museumsFC] = await Promise.all([
     fetch('./data/manhattan_boundary.geojson').then(r => r.json()),
