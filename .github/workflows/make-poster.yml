@@ -1,28 +1,28 @@
 name: Make A3 Poster
 
 on:
-  workflow_dispatch: {}   # run it manually from the Actions tab
+  workflow_dispatch: {}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repo
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Node
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
 
-      - name: Install deps (puppeteer + static server)
+      - name: Install tools
         run: |
-          npm init -y
-          npm install puppeteer http-server
+          npm i -g http-server
+          npm i puppeteer
 
-      - name: Start static server
+      - name: Start static server (repo root)
         run: npx http-server -p 8080 -c-1 . &
-      
+
       - name: Render A3 PDF poster
         env:
           URL: http://localhost:8080/
