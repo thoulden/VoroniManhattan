@@ -76,11 +76,8 @@ const puppeteer = require("puppeteer");
       canvas { width: 100vw !important; height: 100vh !important; }
       /* Make the big title larger in print for punch */
       #bigTitle {
-        font-size: clamp(28px, 5vw, 120px) !important;
-        text-shadow:
-          -1px -1px 0 #fff, 1px -1px 0 #fff,
-          -1px  1px 0 #fff, 1px  1px 0 #fff,
-          0 0 6px #fff !important;
+        font-size: clamp(40px, 6vw, 140px); !important;
+        title.style.background = 'var(--bg)';
       }
     `,
   });
