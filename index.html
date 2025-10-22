@@ -117,8 +117,9 @@ async function main() {
   if (isPoster) {
     // 1) Title: right align + scale
     const title = document.getElementById('bigTitle');
+    title.style.background = 'var(--bg)';
     const titleAlign = (params.get('titleAlign') || 'right').toLowerCase();
-    const titleScale = parseFloat(params.get('titleScale') || '1.5');
+    const titleScale = parseFloat(params.get('titleScale') || '2.5');
 
     if (titleAlign === 'right') {
       // move to top-right and right-align the stacked words
