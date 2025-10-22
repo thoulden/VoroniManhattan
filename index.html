@@ -117,6 +117,12 @@ async function main() {
   if (isPoster) {
     // 1) Title: right align + scale
     const title = document.getElementById('bigTitle');
+      title.innerHTML = `
+        <span>Manhattan</span>
+        <span>Subway</span>
+        <span>Voronoi</span>
+      `;
+
     title.style.background = 'var(--bg)';
     const titleAlign = (params.get('titleAlign') || 'right').toLowerCase();
     const titleScale = parseFloat(params.get('titleScale') || '2.5');
