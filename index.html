@@ -115,38 +115,43 @@ async function main() {
   const isPoster = params.has('poster');
 
   if (isPoster) {
-    // Title: "Manhattan Subway" stacked with "Voronoi" vertical to the right
+    // Title: "Manhattan Subway" stacked with "Voronoi" rotated 90deg below
     const title = document.getElementById('bigTitle');
     title.innerHTML = `
-      <div class="title-left">
+      <div class="title-main">
         <span>Manhattan</span>
         <span>Subway</span>
       </div>
-      <div class="title-voronoi">V<br>O<br>R<br>O<br>N<br>O<br>I</div>
+      <div class="title-voronoi">Voronoi</div>
     `;
 
-    title.style.background = 'var(--bg)';
-    title.style.flexDirection = 'row';
-    title.style.alignItems = 'flex-start';
-    title.style.gap = '0.15em';
+    title.style.background = 'transparent';
+    title.style.flexDirection = 'column';
+    title.style.alignItems = 'flex-end';
+    title.style.gap = '0';
 
-    // Move to top-right
+    // Move to top-right corner
     title.style.left = 'auto';
     title.style.right = 'clamp(12px, 2.5vw, 28px)';
     title.style.textAlign = 'right';
 
-    // Style the left part (Manhattan Subway stacked)
-    const titleLeft = title.querySelector('.title-left');
-    titleLeft.style.display = 'flex';
-    titleLeft.style.flexDirection = 'column';
-    titleLeft.style.alignItems = 'flex-end';
-    titleLeft.style.lineHeight = '0.9';
+    // Style the main part (Manhattan Subway stacked)
+    const titleMain = title.querySelector('.title-main');
+    titleMain.style.display = 'flex';
+    titleMain.style.flexDirection = 'column';
+    titleMain.style.alignItems = 'flex-end';
+    titleMain.style.lineHeight = '0.9';
+    titleMain.style.background = 'var(--bg)';
 
-    // Style the vertical Voronoi
+    // Style Voronoi - rotated 90deg, aligned so V starts below the y
     const voronoi = title.querySelector('.title-voronoi');
-    voronoi.style.lineHeight = '0.85';
-    voronoi.style.letterSpacing = '0';
-    voronoi.style.textAlign = 'center';
+    voronoi.style.transform = 'rotate(90deg)';
+    voronoi.style.transformOrigin = 'top right';
+    voronoi.style.marginTop = '0.1em';
+    voronoi.style.marginRight = '0';
+    voronoi.style.background = 'var(--bg)';
+    voronoi.style.paddingLeft = '0.1em';
+    voronoi.style.paddingRight = '0.1em';
 
     const titleScale = parseFloat(params.get('titleScale') || '2.5');
     if (!Number.isNaN(titleScale) && titleScale !== 1) {
