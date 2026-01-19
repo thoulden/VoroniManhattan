@@ -15,7 +15,7 @@
 //   --angle    integer degrees           (default: 29)   (used only for L1)
 //   --res      1 | 2 | 3 | 4             (default: 1)    (pixel step size)
 //   --title    on | off                  (default: on)   (keeps big overlay title)
-//   --scheme   mta|ocean|sunset|earth|all (default: mta) (color scheme, 'all' generates 4 posters)
+//   --scheme   mta|ocean|sunset|earth|all (default: all) (color scheme, 'all' generates 4 posters)
 //   --out      filename.pdf              (default: poster_a3.pdf, ignored when --scheme all)
 //   --port     number                    (default: auto)
 
@@ -38,7 +38,7 @@ const metric  = getArg("metric", "l1");          // l1 | l2
 const angle   = parseInt(getArg("angle", "29"), 10);
 const res     = parseInt(getArg("res",   "1"), 10);
 const titleOn = (getArg("title", "on") !== "off");
-const scheme  = getArg("scheme", "mta");         // mta | ocean | sunset | earth | all
+const scheme  = getArg("scheme", "all");         // mta | ocean | sunset | earth | all
 const outFile = getArg("out", "poster_a3.pdf");
 const forcedPort = getArg("port", null);
 
