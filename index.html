@@ -144,12 +144,13 @@ async function main() {
     titleMain.style.lineHeight = '0.9';
     titleMain.style.background = 'var(--bg)';
 
-    // Style Voronoi - rotated 90deg, positioned so V starts just below Subway
+    // Style Voronoi - rotated 90deg, positioned so V starts directly below the y in Subway
     const voronoi = title.querySelector('.title-voronoi');
+    voronoi.style.position = 'absolute';
+    voronoi.style.top = '1.85em';  // Below Manhattan + Subway (2 lines × 0.9 line-height)
+    voronoi.style.right = '0';
+    voronoi.style.transformOrigin = 'top right';
     voronoi.style.transform = 'rotate(90deg)';
-    voronoi.style.transformOrigin = 'top left';
-    voronoi.style.alignSelf = 'flex-end';
-    voronoi.style.marginTop = '0.15em';
     voronoi.style.background = 'var(--bg)';
     voronoi.style.paddingTop = '0.05em';
     voronoi.style.paddingBottom = '0.05em';

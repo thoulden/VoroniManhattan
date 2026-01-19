@@ -15,22 +15,22 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install tools
+      - name: Install dependencies
+        run: npm i puppeteer
+
+      - name: Generate all posters
+        run: node make_poster.js
+
+      - name: Commit and push posters
         run: |
-          npm i -g http-server
-          npm i puppeteer
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add posters/
+          git diff --staged --quiet || git commit -m "Update generated posters"
+          git push
 
-      - name: Start static server (repo root)
-        run: npx http-server -p 8080 -c-1 . &
-
-      - name: Render A3 PDF poster
-        env:
-          URL: http://localhost:8080/
-          OUTPUT: poster_a3.pdf
-        run: node scripts/render_poster.js
-
-      - name: Upload poster
+      - name: Upload posters as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: poster_a3
-          path: poster_a3.pdf
+          name: posters
+          path: posters/*.pdf
