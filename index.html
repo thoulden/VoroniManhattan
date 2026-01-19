@@ -129,6 +129,7 @@ async function main() {
     title.style.flexDirection = 'column';
     title.style.alignItems = 'flex-end';
     title.style.gap = '0';
+    title.style.position = 'absolute';
 
     // Move to top-right corner
     title.style.left = 'auto';
@@ -143,15 +144,15 @@ async function main() {
     titleMain.style.lineHeight = '0.9';
     titleMain.style.background = 'var(--bg)';
 
-    // Style Voronoi - rotated 90deg, aligned so V starts below the y
+    // Style Voronoi - rotated 90deg, positioned so V starts just below Subway
     const voronoi = title.querySelector('.title-voronoi');
     voronoi.style.transform = 'rotate(90deg)';
-    voronoi.style.transformOrigin = 'top right';
-    voronoi.style.marginTop = '0.1em';
-    voronoi.style.marginRight = '0';
+    voronoi.style.transformOrigin = 'top left';
+    voronoi.style.alignSelf = 'flex-end';
+    voronoi.style.marginTop = '0.15em';
     voronoi.style.background = 'var(--bg)';
-    voronoi.style.paddingLeft = '0.1em';
-    voronoi.style.paddingRight = '0.1em';
+    voronoi.style.paddingTop = '0.05em';
+    voronoi.style.paddingBottom = '0.05em';
 
     const titleScale = parseFloat(params.get('titleScale') || '2.5');
     if (!Number.isNaN(titleScale) && titleScale !== 1) {

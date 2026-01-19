@@ -45,6 +45,9 @@ const forcedPort = getArg("port", null);
 // Available color schemes
 const ALL_SCHEMES = ["mta", "ocean", "sunset", "earth"];
 
+// Output directory for posters
+const POSTERS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "posters");
+
 // -------- tiny static file server (no deps) --------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -159,17 +162,23 @@ async function generatePoster(browser, port, colorScheme, outputFile) {
   });
 
   try {
+    // Ensure posters directory exists
+    if (!fs.existsSync(POSTERS_DIR)) {
+      fs.mkdirSync(POSTERS_DIR, { recursive: true });
+    }
+
     if (scheme === "all") {
       // Generate posters for all color schemes
       console.log("Generating posters for all color schemes...\n");
       for (const colorScheme of ALL_SCHEMES) {
-        const outputFile = `poster_a3_${colorScheme}.pdf`;
+        const outputFile = path.join(POSTERS_DIR, `poster_a3_${colorScheme}.pdf`);
         await generatePoster(browser, port, colorScheme, outputFile);
       }
-      console.log("\n✅ All posters generated!");
+      console.log("\n✅ All posters generated in posters/ folder!");
     } else {
       // Generate single poster with specified scheme
-      await generatePoster(browser, port, scheme, outFile);
+      const outputFile = path.join(POSTERS_DIR, outFile);
+      await generatePoster(browser, port, scheme, outputFile);
     }
   } finally {
     await browser.close();
