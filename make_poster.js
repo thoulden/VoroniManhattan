@@ -7,6 +7,7 @@
 // Usage (after install steps below):
 //   node make_poster.js
 //   node make_poster.js --dataset museums --metric l1 --angle 29 --res 1 --out poster_a3_museums.pdf
+//   node make_poster.js --scheme all   # generates 4 posters with different color schemes
 //
 // Options:
 //   --dataset  stations | museums        (default: stations)
@@ -14,7 +15,8 @@
 //   --angle    integer degrees           (default: 29)   (used only for L1)
 //   --res      1 | 2 | 3 | 4             (default: 1)    (pixel step size)
 //   --title    on | off                  (default: on)   (keeps big overlay title)
-//   --out      filename.pdf              (default: poster_a3.pdf)
+//   --scheme   mta|ocean|sunset|earth|all (default: mta) (color scheme, 'all' generates 4 posters)
+//   --out      filename.pdf              (default: poster_a3.pdf, ignored when --scheme all)
 //   --port     number                    (default: auto)
 
 import http from "node:http";
@@ -36,8 +38,12 @@ const metric  = getArg("metric", "l1");          // l1 | l2
 const angle   = parseInt(getArg("angle", "29"), 10);
 const res     = parseInt(getArg("res",   "1"), 10);
 const titleOn = (getArg("title", "on") !== "off");
+const scheme  = getArg("scheme", "mta");         // mta | ocean | sunset | earth | all
 const outFile = getArg("out", "poster_a3.pdf");
 const forcedPort = getArg("port", null);
+
+// Available color schemes
+const ALL_SCHEMES = ["mta", "ocean", "sunset", "earth"];
 
 // -------- tiny static file server (no deps) --------
 const __filename = fileURLToPath(import.meta.url);
@@ -78,26 +84,15 @@ function getFreePort(start = 5000) {
   });
 }
 
-(async () => {
-  const port = forcedPort ? parseInt(forcedPort, 10) : await getFreePort(5173);
-  const server = http.createServer(serveFile);
-  await new Promise(r => server.listen(port, r));
-
-  const browser = await puppeteer.launch({
-    headless: "new",
-    // comment the next line if you run into sandbox issues locally:
-    args: ["--no-sandbox", "--disable-setuid-sandbox"]
-  });
+async function generatePoster(browser, port, colorScheme, outputFile) {
+  const page = await browser.newPage();
 
   try {
-    const page = await browser.newPage();
-
     // A3 @ 300 DPI → ~3508 x 4961 px
-    // We'll set viewport to those CSS px so your canvas renders very sharp.
     await page.setViewport({ width: 3508, height: 4961, deviceScaleFactor: 1 });
 
-    // Load your page
-    const url = `http://localhost:${port}/index.html`;
+    // Load page with poster mode and color scheme
+    const url = `http://localhost:${port}/index.html?poster&scheme=${colorScheme}`;
     await page.goto(url, { waitUntil: "networkidle0" });
 
     // Hide header/footer, keep big title depending on flag, make canvas fill
@@ -139,7 +134,7 @@ function getFreePort(start = 5000) {
 
     // Export to a vector PDF page sized exactly A3 with zero margins
     await page.pdf({
-      path: outFile,
+      path: outputFile,
       printBackground: true,
       width: "297mm",
       height: "420mm",
@@ -147,7 +142,35 @@ function getFreePort(start = 5000) {
       preferCSSPageSize: false
     });
 
-    console.log(`✅ Wrote ${outFile}`);
+    console.log(`✅ Wrote ${outputFile}`);
+  } finally {
+    await page.close();
+  }
+}
+
+(async () => {
+  const port = forcedPort ? parseInt(forcedPort, 10) : await getFreePort(5173);
+  const server = http.createServer(serveFile);
+  await new Promise(r => server.listen(port, r));
+
+  const browser = await puppeteer.launch({
+    headless: "new",
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
+
+  try {
+    if (scheme === "all") {
+      // Generate posters for all color schemes
+      console.log("Generating posters for all color schemes...\n");
+      for (const colorScheme of ALL_SCHEMES) {
+        const outputFile = `poster_a3_${colorScheme}.pdf`;
+        await generatePoster(browser, port, colorScheme, outputFile);
+      }
+      console.log("\n✅ All posters generated!");
+    } else {
+      // Generate single poster with specified scheme
+      await generatePoster(browser, port, scheme, outFile);
+    }
   } finally {
     await browser.close();
     server.close();

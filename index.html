@@ -115,37 +115,49 @@ async function main() {
   const isPoster = params.has('poster');
 
   if (isPoster) {
-    // 1) Title: right align + scale
+    // Title: "Manhattan Subway" stacked with "Voronoi" vertical to the right
     const title = document.getElementById('bigTitle');
-      title.innerHTML = `
+    title.innerHTML = `
+      <div class="title-left">
         <span>Manhattan</span>
         <span>Subway</span>
-        <span>Voronoi</span>
-      `;
+      </div>
+      <div class="title-voronoi">V<br>O<br>R<br>O<br>N<br>O<br>I</div>
+    `;
 
     title.style.background = 'var(--bg)';
-    const titleAlign = (params.get('titleAlign') || 'right').toLowerCase();
+    title.style.flexDirection = 'row';
+    title.style.alignItems = 'flex-start';
+    title.style.gap = '0.15em';
+
+    // Move to top-right
+    title.style.left = 'auto';
+    title.style.right = 'clamp(12px, 2.5vw, 28px)';
+    title.style.textAlign = 'right';
+
+    // Style the left part (Manhattan Subway stacked)
+    const titleLeft = title.querySelector('.title-left');
+    titleLeft.style.display = 'flex';
+    titleLeft.style.flexDirection = 'column';
+    titleLeft.style.alignItems = 'flex-end';
+    titleLeft.style.lineHeight = '0.9';
+
+    // Style the vertical Voronoi
+    const voronoi = title.querySelector('.title-voronoi');
+    voronoi.style.lineHeight = '0.85';
+    voronoi.style.letterSpacing = '0';
+    voronoi.style.textAlign = 'center';
+
     const titleScale = parseFloat(params.get('titleScale') || '2.5');
-
-    if (titleAlign === 'right') {
-      // move to top-right and right-align the stacked words
-      title.style.left = 'auto';
-      title.style.right = 'clamp(12px, 2.5vw, 28px)';
-      title.style.alignItems = 'flex-end';
-      title.style.textAlign = 'right';
-    }
-
     if (!Number.isNaN(titleScale) && titleScale !== 1) {
-      // scale the computed font-size (keeps your responsive clamp base)
       const px = parseFloat(getComputedStyle(title).fontSize);
       title.style.fontSize = `${px * titleScale}px`;
     }
 
-      // 2) Smaller pixels: half the normal size => res=1
-      // (You can still override via ?res=2 etc. if you want.)
-      const resOverride = params.get('res') || '1';
-      resEl.value = resOverride;
-    }
+    // Smaller pixels: half the normal size => res=1
+    const resOverride = params.get('res') || '1';
+    resEl.value = resOverride;
+  }
   // Load data
   const [boundaryFC, stationsFC, museumsFC] = await Promise.all([
     fetch('./data/manhattan_boundary.geojson').then(r => r.json()),
@@ -246,11 +258,29 @@ async function main() {
   let currentPointsMeters = stationsMeters;
   let stationXY = [];
 
-  // MTA palette + balanced greedy coloring (via Delaunay neighbors)
-  const MTA_COLORS = [
-    '#0062CF', '#EB6800', '#799534', '#8E5C33',
-    '#F6BC26', '#D82233', '#009952', '#9A38A1', '#008EB7'
-  ];
+  // Color palettes
+  const COLOR_SCHEMES = {
+    mta: [
+      '#0062CF', '#EB6800', '#799534', '#8E5C33',
+      '#F6BC26', '#D82233', '#009952', '#9A38A1', '#008EB7'
+    ],
+    ocean: [
+      '#0A4C6A', '#1B7B8E', '#2CA6A4', '#45B7AA',
+      '#6ECFCF', '#8DD3D8', '#004E64', '#25A18E', '#7AE582'
+    ],
+    sunset: [
+      '#FF6B35', '#F7931E', '#FFCA3A', '#FF595E',
+      '#FF85A1', '#C44536', '#772E25', '#FFB627', '#E07A5F'
+    ],
+    earth: [
+      '#5B7553', '#8B9556', '#A98467', '#6B4423',
+      '#BC8034', '#2D5016', '#7C9070', '#D4A574', '#997B66'
+    ]
+  };
+
+  // Get color scheme from URL params (default to mta)
+  const colorScheme = params.get('scheme') || 'mta';
+  const MTA_COLORS = COLOR_SCHEMES[colorScheme] || COLOR_SCHEMES.mta;
   let siteColor = [];
 
   function computeSiteColors() {
